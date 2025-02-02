@@ -1,7 +1,11 @@
 [package]
-name = "caps_glow"
+name = "CapsGlow"
 version = "0.1.0"
 edition = "2021"
+description = "Windows Capslock Indicator"
+authors = ["iKineticate"]
+license = "MIT License"
+repository = "https://github.com/iKineticate/caps_glow"
 
 [dependencies]
 tao = "0.31.1"
@@ -12,6 +16,15 @@ bytemuck = "1.21.0"
 [dependencies.windows]
 version = "0.59.0"
 features = [
+    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
-    "Win32_Foundation"
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
 ]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = "s"
+panic = "abort"
+strip = "debuginfo"
