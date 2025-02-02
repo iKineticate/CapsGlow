@@ -1,0 +1,17 @@
+[package]
+name = "caps_glow"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tao = "0.31.1"
+softbuffer = "0.4.6"
+piet-common = "0.7.0"
+bytemuck = "1.21.0"
+
+[dependencies.windows]
+version = "0.59.0"
+features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation"
+]
