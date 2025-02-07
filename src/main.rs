@@ -8,7 +8,7 @@ use crate::{
     monitor::{get_primary_monitor_size, get_scale_factor},
     startup::{is_startup_enabled, set_startup},
     tray::{create_menu, create_tray},
-    window::{create_window, set_mouse_penetrable_layered_window},
+    window::{get_window_center_position, create_window},
 };
 
 use std::num::NonZeroU32;
@@ -20,7 +20,6 @@ use piet_common::{Color, Device, FontFamily, RenderContext, Text, TextLayout, Te
 use tao::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    platform::windows::WindowExtWindows,
 };
 use tray_icon::menu::MenuEvent;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
@@ -31,18 +30,11 @@ const TEXT_PADDING: f64 = 20.0;
 fn main() -> Result<()> {
     let event_loop = EventLoop::new();
 
-    let (monitor_width, monitor_height) = get_primary_monitor_size()
-        .map_err(|e| anyhow!("Failed to get primary monitor size- {e}"))?;
     let scale = get_scale_factor();
-    let window_size_logical = WINDOW_SIZE * scale;
-    let pos_x = ((monitor_width - window_size_logical) / 2.0) / scale;
-    let pos_y = ((monitor_height - window_size_logical) / 2.0) / scale;
+    let (pos_x, pos_y) = get_window_center_position(WINDOW_SIZE, scale)?;
 
     let window = create_window(&event_loop, pos_x, pos_y, WINDOW_SIZE)
         .map_err(|e| anyhow!("Failed to create window - {e}"))?;
-
-    set_mouse_penetrable_layered_window(window.hwnd())
-        .map_err(|e| anyhow!("Failed to set mouse penetrable layered window - {e}"))?;
 
     let (window, _context, mut surface) = {
         let window = std::rc::Rc::new(window);

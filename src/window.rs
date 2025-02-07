@@ -1,9 +1,12 @@
+use crate::get_primary_monitor_size;
+
 use anyhow::{anyhow, Context, Result};
 use tao::{
     dpi::{LogicalPosition, LogicalSize},
     event_loop::EventLoop,
     platform::windows::WindowBuilderExtWindows,
     window::{Window, WindowBuilder},
+    platform::windows::WindowExtWindows,
 };
 use windows::Win32::{
     Foundation::{GetLastError, SetLastError, HWND, WIN32_ERROR},
@@ -14,8 +17,17 @@ use windows::Win32::{
     },
 };
 
+pub fn get_window_center_position(size: f64, scale: f64) -> Result<(f64, f64)> {
+    let (monitor_width, monitor_height) = get_primary_monitor_size()
+        .map_err(|e| anyhow!("Failed to get primary monitor size- {e}"))?;
+    let window_size_logical = size * scale;
+    let pos_x = ((monitor_width - window_size_logical) / 2.0) / scale;
+    let pos_y = ((monitor_height - window_size_logical) / 2.0) / scale;
+    Ok((pos_x, pos_y))
+}
+
 pub fn create_window(event_loop: &EventLoop<()>, x: f64, y: f64, size: f64) -> Result<Window> {
-    WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("CapsLock")
         .with_skip_taskbar(!cfg!(debug_assertions))
         .with_undecorated_shadow(cfg!(debug_assertions))
@@ -28,10 +40,15 @@ pub fn create_window(event_loop: &EventLoop<()>, x: f64, y: f64, size: f64) -> R
         .with_focused(false)
         .with_content_protection(true)
         .build(event_loop)
-        .map_err(|e| anyhow::anyhow!("{e}"))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    set_mouse_penetrable_layered_window(window.hwnd())
+        .map_err(|e| anyhow!("Failed to set mouse penetrable layered window - {e}"))?;
+
+    Ok(window)
 }
 
-pub fn set_mouse_penetrable_layered_window(hwnd: isize) -> Result<()> {
+fn set_mouse_penetrable_layered_window(hwnd: isize) -> Result<()> {
     unsafe {
         let hwnd = HWND(hwnd as _);
         let ex_style = WS_EX_LAYERED | WS_EX_TRANSPARENT;
