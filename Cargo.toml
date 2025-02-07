@@ -12,6 +12,9 @@ tao = "0.31.1"
 softbuffer = "0.4.6"
 piet-common = "0.7.0"
 bytemuck = "1.21.0"
+tray-icon = "0.19.2"
+image = "0.25"
+winreg = "0.55"
 anyhow = "1.0.95"
 
 [dependencies.windows]

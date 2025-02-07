@@ -6,12 +6,21 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 use piet_common::{Color, Device, FontFamily, RenderContext, Text, TextLayout, TextLayoutBuilder};
+use winreg::enums::*;
+use winreg::RegKey;
 use tao::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     platform::windows::{WindowBuilderExtWindows, WindowExtWindows},
     window::{Window, WindowBuilder},
+};
+use tray_icon::{
+    menu::{
+        Menu, MenuItem, PredefinedMenuItem, CheckMenuItem,
+        AboutMetadata, MenuEvent,
+    },
+    TrayIconBuilder,
 };
 use windows::Win32::{
     Foundation::{GetLastError, SetLastError, HWND, POINT, WIN32_ERROR},
@@ -60,9 +69,21 @@ fn main() -> Result<()> {
     let mut device =
         Device::new().map_err(|e| anyhow!("Failed to create struct 'Device' - {e}"))?;
 
-    let last_caps_state = Arc::new(Mutex::new(false));
+    let should_startup = is_startup_enabled()?;
+    let tray_menu = create_menu(should_startup)?;
+    let _tray_icon = TrayIconBuilder::new()
+        .with_menu_on_left_click(true)
+        .with_icon(load_icon(ICON_DATA).map_err(|e| anyhow!("Failed to load icon - {e}"))?)
+        .with_tooltip("CapsGlow")
+        .with_menu(Box::new(tray_menu))
+        .build()
+        .context("Failed to build tray")?;
+
+    let menu_channel = MenuEvent::receiver();
 
     let event_loop_proxy = event_loop.create_proxy();
+
+    let last_caps_state = Arc::new(Mutex::new(false));
 
     // Listen globally for CapsLock key activity.
     let last_caps_state_thread = Arc::clone(&last_caps_state);
@@ -85,6 +106,14 @@ fn main() -> Result<()> {
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(100));
+
+        if let Ok(menu_event) = menu_channel.try_recv() {
+            match menu_event.id().as_ref() {
+                "quit" => std::process::exit(0x0100),
+                "startup" => set_startup(!is_startup_enabled().unwrap()).expect("Failed to set Launch at Startup"),
+                _ => (),
+            }
+        }
 
         match event {
             Event::WindowEvent {
@@ -233,4 +262,76 @@ fn set_mouse_penetrable_layered_window(hwnd: isize) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn create_menu(should_startup: bool) -> Result<Menu> {
+    let tray_menu = Menu::new();
+    let menu_quit = MenuItem::with_id("quit", "Quit", true, None);
+    let menu_separator = PredefinedMenuItem::separator();
+    let menu_about = PredefinedMenuItem::about(
+        Some("About"),
+        Some(AboutMetadata {
+            name: Some("CapsGlow".to_owned()),
+            version: Some("0.1.0".to_owned()),
+            authors: Some(vec!["iKineticate".to_owned()]),
+            website: Some("https://github.com/iKineticate/CapsGlow".to_owned()),
+            ..Default::default()
+        }));
+    let menu_startup = CheckMenuItem::with_id("startup", "Launch at Startup", true, should_startup, None);
+    tray_menu.append(&menu_startup).context("Failed to apped 'Launch at Startup' to Tray Menu")?;
+    tray_menu.append(&menu_separator).context("Failed to apped 'Separator' to Tray Menu")?;
+    tray_menu.append(&menu_about).context("Failed to apped 'About' to Tray Menu")?;
+    tray_menu.append(&menu_separator).context("Failed to apped 'Separator' to Tray Menu")?;
+    tray_menu.append(&menu_quit).context("Failed to apped 'Quit' to Tray Menu")?;
+    Ok(tray_menu)
+}
+
+fn set_startup(enabled: bool) -> Result<()> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let run_key_path = r"Software\Microsoft\Windows\CurrentVersion\Run";
+    let (run_key, _disp) = hkcu.create_subkey(run_key_path)?;
+
+    if enabled {
+        let exe_path = std::env::current_exe()?
+            .to_str()
+            .ok_or_else(|| anyhow!("Failed to convert exe path to string"))?
+            .to_owned();
+        run_key.set_value("CapsGlow", &exe_path)
+            .context("Failed to set the autostart registry key")?;
+    } else {
+        run_key.delete_value("CapsGlow")
+            .context("Failed to delete the autostart registry key")?;
+    }
+
+    Ok(())
+}
+
+fn is_startup_enabled() -> Result<bool> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let run_key_path = r"Software\Microsoft\Windows\CurrentVersion\Run";
+    let run_key = hkcu.open_subkey_with_flags(run_key_path, KEY_READ)?;
+
+    match run_key.get_value::<String, _>("CapsGlow") {
+        Ok(value) => {
+            let exe_path = std::env::current_exe()?
+                .to_str()
+                .ok_or_else(|| anyhow!("Failed to convert exe path to string"))?
+                .to_owned();
+            Ok(value == exe_path)
+        },
+        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(anyhow::Error::new(e).context("Failed to read the autostart registry key")),
+    }
+}
+
+fn load_icon(icon_data: &[u8]) -> Result<tray_icon::Icon> {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::load_from_memory(icon_data)
+            .context("Failed to open icon path")?
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).context("Failed to crate the logo")
 }
