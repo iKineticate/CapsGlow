@@ -107,14 +107,23 @@ fn main() -> Result<()> {
                     window.inner_size().height as usize,
                 );
 
-                let mut bitmap_target = match device.bitmap_target(width, height, 1.0) {
-                    Ok(t) => t,
-                    Err(_) => return,
-                };
-                let mut piet = bitmap_target.render_context();
-                piet.clear(None, Color::TRANSPARENT);
+                surface
+                    .resize(
+                        NonZeroU32::new(width as u32).unwrap(),
+                        NonZeroU32::new(height as u32).unwrap(),
+                    )
+                    .unwrap();
+
+                let mut buffer = surface.buffer_mut().unwrap();
 
                 if current_caps_state {
+                    let mut bitmap_target = match device.bitmap_target(width, height, 1.0) {
+                        Ok(t) => t,
+                        Err(_) => return,
+                    };
+                    let mut piet = bitmap_target.render_context();
+                    piet.clear(None, Color::TRANSPARENT);
+
                     let text = piet.text();
                     // Dynamically calculated font size
                     let mut font_size = 10.0;
@@ -140,23 +149,11 @@ fn main() -> Result<()> {
                         (height as f64 - layout.size().height) / 2.0,
                     );
 
+                    // Drop the first mutable borrow before the second one
                     piet.draw_text(&layout, (x, y));
-                }
+                    piet.finish().unwrap();
+                    drop(piet);
 
-                // Drop the first mutable borrow before the second one
-                piet.finish().unwrap();
-                drop(piet);
-
-                surface
-                    .resize(
-                        NonZeroU32::new(width as u32).unwrap(),
-                        NonZeroU32::new(height as u32).unwrap(),
-                    )
-                    .unwrap();
-
-                let mut buffer = surface.buffer_mut().unwrap();
-
-                if current_caps_state {
                     let buffer_slice = buffer.as_mut();
                     let buffer_slice_u8 = bytemuck::cast_slice_mut(buffer_slice);
                     bitmap_target
