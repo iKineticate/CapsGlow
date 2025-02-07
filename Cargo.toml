@@ -12,6 +12,7 @@ tao = "0.31.1"
 softbuffer = "0.4.6"
 piet-common = "0.7.0"
 bytemuck = "1.21.0"
+anyhow = "1.0.95"
 
 [dependencies.windows]
 version = "0.59.0"
@@ -21,6 +22,9 @@ features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
 ]
+
+[build-dependencies]
+embed-resource = "3.0.1"
 
 [profile.release]
 lto = "fat"
