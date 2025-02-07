@@ -5,7 +5,7 @@ edition = "2021"
 description = "Windows Capslock Indicator"
 authors = ["iKineticate"]
 license = "MIT License"
-repository = "https://github.com/iKineticate/caps_glow"
+repository = "https://github.com/iKineticate/CapsGlow"
 
 [dependencies]
 tao = "0.31.1"

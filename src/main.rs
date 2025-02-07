@@ -70,6 +70,10 @@ fn main() -> Result<()> {
         let last_caps_state = Arc::clone(&last_caps_state_thread);
         loop {
             std::thread::sleep(Duration::from_millis(100));
+            // https://learn.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
+            // VK_CAPITAL: 0x14 - CapsLock
+            // VK_NUMLOCK: 0x90 - NumLock
+            // VK_SCROLL : 0x91 - ScrollLock
             let current_caps_state = unsafe { (GetKeyState(0x14) & 0x0001) != 0 };
             let mut last_caps_state = last_caps_state.lock().unwrap();
             if current_caps_state != *last_caps_state {
@@ -197,6 +201,8 @@ fn create_window(event_loop: &EventLoop<()>, x: f64, y: f64) -> Result<Window> {
         .with_decorations(false)
         .with_transparent(true)
         .with_resizable(false)
+        .with_focused(false)
+        .with_content_protection(true)
         .build(event_loop)
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
