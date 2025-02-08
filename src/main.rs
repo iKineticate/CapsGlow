@@ -33,7 +33,8 @@ fn main() -> Result<()> {
     let event_loop = EventLoop::new();
 
     let scale = get_scale_factor();
-    let (pos_x, pos_y) = get_window_center_position(WINDOW_SIZE, scale)?;
+    let (pos_x, pos_y) = get_window_center_position(WINDOW_SIZE, scale)
+        .map_err(|e| anyhow!("Failed to get window center position - {e}"))?;
 
     let window = create_window(&event_loop, pos_x, pos_y, WINDOW_SIZE)
         .map_err(|e| anyhow!("Failed to create window - {e}"))?;
@@ -43,16 +44,19 @@ fn main() -> Result<()> {
         let context = softbuffer::Context::new(window.clone())
             .map_err(|e| anyhow!("Failed to create a new instance of context - {e}"))?;
         let surface = softbuffer::Surface::new(&context, window.clone())
-            .map_err(|e| anyhow!("Failed to create a surface for drawing to a window - {e}"))?;
+            .map_err(|e| anyhow!("Failed to create a surface for drawing to window - {e}"))?;
         (window, context, surface)
     };
 
     let mut device =
         Device::new().map_err(|e| anyhow!("Failed to create struct 'Device' - {e}"))?;
 
-    let should_startup = is_startup_enabled()?;
-    let tray_menu = create_menu(should_startup)?;
-    let _tray_icon = create_tray(tray_menu)?;
+    let should_startup =
+        is_startup_enabled().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
+    let tray_menu =
+        create_menu(should_startup).map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
+    let _tray_icon =
+        create_tray(tray_menu).map_err(|e| anyhow!("Failed to create tray icon. - {e}"))?;
 
     let menu_channel = MenuEvent::receiver();
 
@@ -67,14 +71,11 @@ fn main() -> Result<()> {
         loop {
             std::thread::sleep(Duration::from_millis(150));
             // https://learn.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
-            // VK_CAPITAL: 0x14 - CapsLock
-            // VK_NUMLOCK: 0x90 - NumLock
-            // VK_SCROLL : 0x91 - ScrollLock
             let current_caps_state = unsafe { (GetKeyState(0x14) & 0x0001) != 0 };
             let mut last_caps_state = last_caps_state.lock().unwrap();
             if current_caps_state != *last_caps_state {
                 *last_caps_state = current_caps_state;
-                let _ = event_loop_proxy.send_event(());
+                event_loop_proxy.send_event(()).unwrap();
             }
         }
     });
@@ -84,10 +85,10 @@ fn main() -> Result<()> {
 
         if let Ok(menu_event) = menu_channel.try_recv() {
             match menu_event.id().as_ref() {
-                "quit" => std::process::exit(0x0100),
+                "quit" => *control_flow = ControlFlow::Exit,
                 "startup" => {
                     let should_startup =
-                        !is_startup_enabled().expect("Failed to get statup status");
+                        !is_startup_enabled().expect("Failed to get startup status");
                     set_startup(should_startup).expect("Failed to set Launch at Startup")
                 }
                 _ => (),
@@ -111,7 +112,7 @@ fn main() -> Result<()> {
                         NonZeroU32::new(width as u32).unwrap(),
                         NonZeroU32::new(height as u32).unwrap(),
                     )
-                    .unwrap();
+                    .expect("Failed to set the size of the buffer");
 
                 let mut buffer = surface.buffer_mut().unwrap();
 
@@ -123,12 +124,12 @@ fn main() -> Result<()> {
                         get_font_bitmap(&mut device, width, height, TEXT_PADDING, scale).unwrap();
                     bitmap_target
                         .copy_raw_pixels(piet_common::ImageFormat::RgbaPremul, buffer_slice_u8) // RgbaSeparate: 颜色分量和透明度是分开存储的，RgbaPremul: 颜色分量已经被透明度乘过。
-                        .unwrap();
+                        .expect("Failed to copy RGBA buffer with premultiplied alpha from font bitmap to surface buffer");
                 } else {
                     buffer.fill(0);
                 }
 
-                buffer.present().unwrap();
+                buffer.present().expect("Failed to presents buffer to the window.");
             }
             _ => (),
         }
