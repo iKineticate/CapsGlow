@@ -10,7 +10,7 @@ use crate::{
     font::get_font_bitmap,
     monitor::{get_primary_monitor_size, get_scale_factor},
     startup::{is_startup_enabled, set_startup},
-    tray::{create_menu, create_tray},
+    tray::create_tray,
     window::{create_window, get_window_center_position},
 };
 
@@ -52,12 +52,8 @@ fn main() -> Result<()> {
     let mut device =
         Device::new().map_err(|e| anyhow!("Failed to create struct 'Device' - {e}"))?;
 
-    let should_startup =
-        is_startup_enabled().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
-    let tray_menu =
-        create_menu(should_startup).map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
     let _tray_icon =
-        create_tray(tray_menu).map_err(|e| anyhow!("Failed to create tray icon. - {e}"))?;
+        create_tray().map_err(|e| anyhow!("Failed to create tray icon. - {e}"))?;
 
     let menu_channel = MenuEvent::receiver();
 

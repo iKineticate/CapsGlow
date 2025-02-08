@@ -1,4 +1,5 @@
 use crate::language::{Language, Localization};
+use crate::startup::is_startup_enabled;
 
 use anyhow::{anyhow, Context, Result};
 use tray_icon::{
@@ -8,7 +9,9 @@ use tray_icon::{
 
 const ICON_DATA: &[u8] = include_bytes!("logo.ico");
 
-pub fn create_menu(should_startup: bool) -> Result<Menu> {
+fn create_menu() -> Result<Menu> {
+    let should_startup = is_startup_enabled().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
+
     let language = Language::get_system_language();
     let loc = Localization::get(language);
 
@@ -44,12 +47,14 @@ pub fn create_menu(should_startup: bool) -> Result<Menu> {
     Ok(tray_menu)
 }
 
-pub fn create_tray(menu: Menu) -> Result<TrayIcon> {
+pub fn create_tray() -> Result<TrayIcon> {
+    let tray_menu = create_menu().map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
+
     TrayIconBuilder::new()
         .with_menu_on_left_click(true)
         .with_icon(load_icon(ICON_DATA).map_err(|e| anyhow!("Failed to load icon - {e}"))?)
         .with_tooltip("CapsGlow")
-        .with_menu(Box::new(menu))
+        .with_menu(Box::new(tray_menu))
         .build()
         .map_err(|e| anyhow!("Failed to build tray - {e}"))
 }
