@@ -5,8 +5,8 @@ use tao::{
     dpi::{LogicalPosition, LogicalSize},
     event_loop::EventLoop,
     platform::windows::WindowBuilderExtWindows,
-    window::{Window, WindowBuilder},
     platform::windows::WindowExtWindows,
+    window::{Window, WindowBuilder},
 };
 use windows::Win32::{
     Foundation::{GetLastError, SetLastError, HWND, WIN32_ERROR},
@@ -69,7 +69,7 @@ fn set_mouse_penetrable_layered_window(hwnd: isize) -> Result<()> {
                 .map_err(|e| anyhow!("Failed to update window - {e}"))?;
         } else {
             return Err(anyhow!(
-                "Failed to set 'WS_EX_LAYERED' and 'WS_EX_TRANSPARENT' of the window"
+                "Failed to set 'WS_EX_LAYERED' and 'WS_EX_TRANSPARENT' of window"
             ));
         }
     }

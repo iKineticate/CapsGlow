@@ -1,14 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod font;
 mod monitor;
 mod startup;
 mod tray;
 mod window;
 
 use crate::{
+    font::get_font_bitmap,
     monitor::{get_primary_monitor_size, get_scale_factor},
     startup::{is_startup_enabled, set_startup},
     tray::{create_menu, create_tray},
-    window::{get_window_center_position, create_window},
+    window::{create_window, get_window_center_position},
 };
 
 use std::num::NonZeroU32;
@@ -16,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
-use piet_common::{Color, Device, FontFamily, RenderContext, Text, TextLayout, TextLayoutBuilder};
+use piet_common::Device;
 use tao::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -102,10 +104,7 @@ fn main() -> Result<()> {
                 let current_caps_state = Arc::clone(&last_caps_state);
                 let current_caps_state = *current_caps_state.lock().unwrap();
 
-                let (width, height) = (
-                    window.inner_size().width as usize,
-                    window.inner_size().height as usize,
-                );
+                let (width, height) = (window.inner_size().width, window.inner_size().height);
 
                 surface
                     .resize(
@@ -117,45 +116,11 @@ fn main() -> Result<()> {
                 let mut buffer = surface.buffer_mut().unwrap();
 
                 if current_caps_state {
-                    let mut bitmap_target = match device.bitmap_target(width, height, 1.0) {
-                        Ok(t) => t,
-                        Err(_) => return,
-                    };
-                    let mut piet = bitmap_target.render_context();
-                    piet.clear(None, Color::TRANSPARENT);
-
-                    let text = piet.text();
-                    // Dynamically calculated font size
-                    let mut font_size = 10.0;
-                    let mut layout;
-                    loop {
-                        layout = text
-                            .new_text_layout("🔒")
-                            .font(FontFamily::new_unchecked("Arial"), font_size)
-                            .text_color(Color::from_rgba32_u32(0xffffffcc)) // 0xffffff + alpha:00~ff
-                            .build()
-                            .unwrap();
-
-                        if layout.size().width > (WINDOW_SIZE - TEXT_PADDING) * scale
-                            || layout.size().height > (WINDOW_SIZE - TEXT_PADDING) * scale
-                        {
-                            break;
-                        }
-                        font_size += 1.0;
-                    }
-
-                    let (x, y) = (
-                        (width as f64 - layout.size().width) / 2.0,
-                        (height as f64 - layout.size().height) / 2.0,
-                    );
-
-                    // Drop the first mutable borrow before the second one
-                    piet.draw_text(&layout, (x, y));
-                    piet.finish().unwrap();
-                    drop(piet);
-
                     let buffer_slice = buffer.as_mut();
                     let buffer_slice_u8 = bytemuck::cast_slice_mut(buffer_slice);
+
+                    let mut bitmap_target =
+                        get_font_bitmap(&mut device, width, height, TEXT_PADDING, scale).unwrap();
                     bitmap_target
                         .copy_raw_pixels(piet_common::ImageFormat::RgbaPremul, buffer_slice_u8) // RgbaSeparate: 颜色分量和透明度是分开存储的，RgbaPremul: 颜色分量已经被透明度乘过。
                         .unwrap();
