@@ -1,3 +1,5 @@
+use crate::language::{Language, Localization};
+
 use anyhow::{anyhow, Context, Result};
 use tray_icon::{
     menu::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
@@ -7,11 +9,14 @@ use tray_icon::{
 const ICON_DATA: &[u8] = include_bytes!("logo.ico");
 
 pub fn create_menu(should_startup: bool) -> Result<Menu> {
+    let language = Language::get_system_language();
+    let loc = Localization::get(language);
+
     let tray_menu = Menu::new();
-    let menu_quit = MenuItem::with_id("quit", "Quit", true, None);
+    let menu_quit = MenuItem::with_id("quit", loc.exsit, true, None);
     let menu_separator = PredefinedMenuItem::separator();
     let menu_about = PredefinedMenuItem::about(
-        Some("About"),
+        Some(loc.about),
         Some(AboutMetadata {
             name: Some("CapsGlow".to_owned()),
             version: Some("0.1.0".to_owned()),
@@ -20,8 +25,7 @@ pub fn create_menu(should_startup: bool) -> Result<Menu> {
             ..Default::default()
         }),
     );
-    let menu_startup =
-        CheckMenuItem::with_id("startup", "Launch at Startup", true, should_startup, None);
+    let menu_startup = CheckMenuItem::with_id("startup", loc.startup, true, should_startup, None);
     tray_menu
         .append(&menu_startup)
         .context("Failed to apped 'Launch at Startup' to Tray Menu")?;
