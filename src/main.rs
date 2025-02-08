@@ -22,7 +22,7 @@ use anyhow::{anyhow, Result};
 use piet_common::Device;
 use tao::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopProxy},
 };
 use tray_icon::menu::MenuEvent;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
@@ -65,21 +65,8 @@ fn main() -> Result<()> {
 
     let last_caps_state = Arc::new(Mutex::new(false));
 
-    // Listen globally for CapsLock key activity.
     let last_caps_state_thread = Arc::clone(&last_caps_state);
-    std::thread::spawn(move || {
-        let last_caps_state = Arc::clone(&last_caps_state_thread);
-        loop {
-            std::thread::sleep(Duration::from_millis(150));
-            // https://learn.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
-            let current_caps_state = unsafe { (GetKeyState(0x14) & 0x0001) != 0 };
-            let mut last_caps_state = last_caps_state.lock().unwrap();
-            if current_caps_state != *last_caps_state {
-                *last_caps_state = current_caps_state;
-                event_loop_proxy.send_event(()).unwrap();
-            }
-        }
-    });
+    listen_capslock(last_caps_state_thread, event_loop_proxy);
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(150));
@@ -133,6 +120,22 @@ fn main() -> Result<()> {
                 buffer.present().expect("Failed to presents buffer to the window.");
             }
             _ => (),
+        }
+    });
+}
+
+fn listen_capslock(last_caps_state: Arc<Mutex<bool>>, event_loop_proxy: EventLoopProxy<()>) {
+    std::thread::spawn(move || {
+        let last_caps_state = Arc::clone(&last_caps_state);
+        loop {
+            std::thread::sleep(Duration::from_millis(150));
+            // https://learn.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
+            let current_caps_state = unsafe { (GetKeyState(0x14) & 0x0001) != 0 };
+            let mut last_caps_state = last_caps_state.lock().unwrap();
+            if current_caps_state != *last_caps_state {
+                *last_caps_state = current_caps_state;
+                event_loop_proxy.send_event(()).unwrap();
+            }
         }
     });
 }
