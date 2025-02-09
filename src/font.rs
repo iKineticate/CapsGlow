@@ -1,7 +1,12 @@
+use crate::{Arc, Mutex, Theme};
+
 use anyhow::{anyhow, Result};
 use piet_common::{
     BitmapTarget, Color, Device, FontFamily, RenderContext, Text, TextLayout, TextLayoutBuilder,
 };
+
+const DARK: u32 = 0x000000cc;
+const LIGHT: u32 = 0xffffffcc;
 
 pub fn get_font_bitmap<'a>(
     device: &'a mut Device,
@@ -9,12 +14,19 @@ pub fn get_font_bitmap<'a>(
     height: u32,
     text_padding: f64,
     scale: f64,
+    follow_system_theme: Arc<Mutex<Option<Theme>>>,
 ) -> Result<BitmapTarget<'a>> {
     let mut bitmap_target = device
         .bitmap_target(width as usize, height as usize, 1.0)
         .map_err(|e| anyhow!("Failed to create a new bitmap target. - {e}"))?;
     let mut piet = bitmap_target.render_context();
     piet.clear(None, Color::TRANSPARENT);
+
+    let follow_system_theme = follow_system_theme.lock().unwrap();
+    let color = match *follow_system_theme {
+        Some(theme) =>  if theme == Theme::Dark { LIGHT } else { DARK },
+        None => LIGHT,
+    };
 
     // Dynamically calculated font size
     let mut layout;
@@ -24,7 +36,7 @@ pub fn get_font_bitmap<'a>(
         layout = text
             .new_text_layout("🔒")
             .font(FontFamily::new_unchecked("Arial"), font_size)
-            .text_color(Color::from_rgba32_u32(0xffffffcc)) // 0xffffff + alpha:00~ff
+            .text_color(Color::from_rgba32_u32(color)) // 0xffffff + alpha:00~ff
             .build()
             .map_err(|e| anyhow!("Failed to build text layout - {e}"))?;
 

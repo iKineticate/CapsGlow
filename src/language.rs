@@ -21,60 +21,70 @@ pub struct Localization {
     pub exsit: &'static str,
     pub about: &'static str,
     pub startup: &'static str,
+    pub follow_system_theme: &'static str,
 }
 
 const ZH_CN: Localization = Localization {
     exsit: "退出",
     about: "关于",
-    startup: "开机自启动",
+    startup: "开机自启",
+    follow_system_theme: "跟随系统主题",
 };
 
 const ZH_HANT: Localization = Localization {
     exsit: "退出",
     about: "關于",
-    startup: "開機自啓動",
+    startup: "開機自啓",
+    follow_system_theme: "跟隨系統主題",
 };
 
 const EN_US: Localization = Localization {
     exsit: "Exsit",
     about: "About",
     startup: "Launch at Startup",
+    follow_system_theme: "Follow System Theme",
 };
 
 const JA_JP: Localization = Localization {
     exsit: "終了",
     about: "約",
     startup: "スタートアップで起動",
+    follow_system_theme: "システムテーマに従う",
 };
 
 const KO_KR: Localization = Localization {
     exsit: "종료",
     about: "정보",
     startup: "시작 시 실행",
+    follow_system_theme: "시스템 테마 따르기",
 };
 
 const DE_DE: Localization = Localization {
     exsit: "Beenden",
     about: "Über",
     startup: "Beim Start ausführen",
+    follow_system_theme: "Systemthema folgen",
 };
 
 const RU_RU: Localization = Localization {
     exsit: "Выход",
     about: "О программе",
     startup: "Запуск при старте",
+    follow_system_theme: "Следовать системной теме",
 };
 
 const AR_SA: Localization = Localization {
     exsit: "خروج",
     about: "حول",
     startup: "تشغيل عند بدء التشغيل",
+    follow_system_theme: "اتبع موضوع النظام",
 };
 
 const FR_FR: Localization = Localization {
     exsit: "Quitter",
     about: "À propos",
     startup: "Lancer au démarrage",
+    follow_system_theme: "Suivre le thème du système",
 };
 
 impl Language {

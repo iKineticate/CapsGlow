@@ -2,6 +2,8 @@ use anyhow::{anyhow, Context, Result};
 use winreg::enums::*;
 use winreg::RegKey;
 
+const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+
 fn get_exe_path() -> Result<String> {
     let exe_path = std::env::current_exe()?
         .to_str()
@@ -12,8 +14,7 @@ fn get_exe_path() -> Result<String> {
 
 pub fn set_startup(enabled: bool) -> Result<()> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let run_key_path = r"Software\Microsoft\Windows\CurrentVersion\Run";
-    let (run_key, _disp) = hkcu.create_subkey(run_key_path)?;
+    let (run_key, _disp) = hkcu.create_subkey(RUN_KEY)?;
 
     if enabled {
         let exe_path = get_exe_path()?;
@@ -31,9 +32,8 @@ pub fn set_startup(enabled: bool) -> Result<()> {
 
 pub fn is_startup_enabled() -> Result<bool> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let run_key_path = r"Software\Microsoft\Windows\CurrentVersion\Run";
     let run_key = hkcu
-        .open_subkey_with_flags(run_key_path, KEY_READ)
+        .open_subkey_with_flags(RUN_KEY, KEY_READ)
         .map_err(|e| anyhow!("Failed to open HKEY_CURRENT_USER\\...\\Run - {e}"))?;
 
     match run_key.get_value::<String, _>("CapsGlow") {

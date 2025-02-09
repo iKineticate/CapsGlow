@@ -11,6 +11,7 @@ const ICON_DATA: &[u8] = include_bytes!("logo.ico");
 
 fn create_menu() -> Result<Menu> {
     let should_startup = is_startup_enabled().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
+    let follow_system_theme = true;
 
     let language = Language::get_system_language();
     let loc = Localization::get(language);
@@ -29,6 +30,11 @@ fn create_menu() -> Result<Menu> {
         }),
     );
     let menu_startup = CheckMenuItem::with_id("startup", loc.startup, true, should_startup, None);
+    let menu_theme = CheckMenuItem::with_id("theme", loc.follow_system_theme, true, follow_system_theme, None);
+
+    tray_menu
+        .append(&menu_theme)
+        .context("Failed to apped 'Follow System Theme' to Tray Menu")?;
     tray_menu
         .append(&menu_startup)
         .context("Failed to apped 'Launch at Startup' to Tray Menu")?;
@@ -44,6 +50,7 @@ fn create_menu() -> Result<Menu> {
     tray_menu
         .append(&menu_quit)
         .context("Failed to apped 'Quit' to Tray Menu")?;
+
     Ok(tray_menu)
 }
 
