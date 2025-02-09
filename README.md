@@ -4,4 +4,4 @@ Windows Capslock Indicator 🦆
 
 Windows 大小写键指示器 🦆
 
-![image](../screenshots/capslock.png)
+![image](https://raw.githubusercontent.com/iKineticate/CapsGlow/refs/heads/main/screenshots/capslock.png)
