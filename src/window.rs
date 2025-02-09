@@ -32,11 +32,11 @@ pub fn create_window(event_loop: &EventLoop<()>, x: f64, y: f64, size: f64) -> R
         .with_window_icon(Some(
             load_icon(ICON_DATA).map_err(|e| anyhow!("Failed to load icon - {e}"))?,
         ))
+        .with_inner_size(LogicalSize::new(size, size))
+        .with_position(LogicalPosition::new(x, y))
         .with_skip_taskbar(!cfg!(debug_assertions))
         .with_undecorated_shadow(cfg!(debug_assertions))
         .with_always_on_top(true)
-        .with_inner_size(LogicalSize::new(size, size))
-        .with_position(LogicalPosition::new(x, y))
         .with_decorations(false)
         .with_transparent(true)
         .with_resizable(false)
