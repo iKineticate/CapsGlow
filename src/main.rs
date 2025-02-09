@@ -31,8 +31,10 @@ use winreg::RegKey;
 
 const WINDOW_SIZE: f64 = 200.0;
 const TEXT_PADDING: f64 = 20.0;
-const PERSONALIZE_REGISTRY_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
+const PERSONALIZE_REGISTRY_KEY: &str =
+    r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 const APPS_USE_LIGHT_THEME_REGISTRY_KEY: &str = "AppsUseLightTheme";
+pub const ICON_DATA: &[u8] = include_bytes!("logo.ico");
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Theme {
@@ -62,8 +64,7 @@ fn main() -> Result<()> {
     let mut device =
         Device::new().map_err(|e| anyhow!("Failed to create struct 'Device' - {e}"))?;
 
-    let _tray_icon =
-        create_tray().map_err(|e| anyhow!("Failed to create tray icon. - {e}"))?;
+    let _tray_icon = create_tray().map_err(|e| anyhow!("Failed to create tray icon. - {e}"))?;
 
     let menu_channel = MenuEvent::receiver();
 
@@ -74,7 +75,11 @@ fn main() -> Result<()> {
 
     let last_caps_state_thread = Arc::clone(&last_caps_state);
     let follow_system_theme_thread = Arc::clone(&follow_system_theme);
-    listen_capslock(last_caps_state_thread, follow_system_theme_thread, event_loop_proxy);
+    listen_capslock(
+        last_caps_state_thread,
+        follow_system_theme_thread,
+        event_loop_proxy,
+    );
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(150));
@@ -105,7 +110,13 @@ fn main() -> Result<()> {
                 let current_caps_state = Arc::clone(&last_caps_state);
                 let current_caps_state = *current_caps_state.lock().unwrap();
 
-                let (width, height) = (window.inner_size().width, window.inner_size().height);
+                let (mut width, mut height) = (window.inner_size().width, window.inner_size().height);
+                if width as f64 != WINDOW_SIZE * scale
+                    || height as f64 != WINDOW_SIZE * scale
+                {
+                    window.set_inner_size(tao::dpi::LogicalSize::new(WINDOW_SIZE, WINDOW_SIZE));
+                    (width, height) = ((WINDOW_SIZE * scale) as u32, (WINDOW_SIZE * scale) as u32);
+                }
 
                 surface
                     .resize(
@@ -126,6 +137,8 @@ fn main() -> Result<()> {
                     bitmap_target
                         .copy_raw_pixels(piet_common::ImageFormat::RgbaPremul, buffer_slice_u8) // RgbaSeparate: 颜色分量和透明度是分开存储的，RgbaPremul: 颜色分量已经被透明度乘过。
                         .expect("Failed to copy RGBA buffer with premultiplied alpha from font bitmap to surface buffer");
+
+                    window.set_minimized(false);
                 } else {
                     buffer.fill(0);
                 }
@@ -140,7 +153,7 @@ fn main() -> Result<()> {
 fn listen_capslock(
     last_caps_state: Arc<Mutex<bool>>,
     follow_system_theme: Arc<Mutex<Option<Theme>>>,
-    event_loop_proxy: EventLoopProxy<()>
+    event_loop_proxy: EventLoopProxy<()>,
 ) {
     std::thread::spawn(move || {
         let last_caps_state = Arc::clone(&last_caps_state);

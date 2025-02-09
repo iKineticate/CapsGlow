@@ -1,4 +1,4 @@
-use crate::get_primary_monitor_size;
+use crate::{get_primary_monitor_size, ICON_DATA};
 
 use anyhow::{anyhow, Context, Result};
 use tao::{
@@ -6,7 +6,7 @@ use tao::{
     event_loop::EventLoop,
     platform::windows::WindowBuilderExtWindows,
     platform::windows::WindowExtWindows,
-    window::{Window, WindowBuilder},
+    window::{Icon, Window, WindowBuilder},
 };
 use windows::Win32::{
     Foundation::{GetLastError, SetLastError, HWND, WIN32_ERROR},
@@ -29,6 +29,9 @@ pub fn get_window_center_position(size: f64, scale: f64) -> Result<(f64, f64)> {
 pub fn create_window(event_loop: &EventLoop<()>, x: f64, y: f64, size: f64) -> Result<Window> {
     let window = WindowBuilder::new()
         .with_title("CapsLock")
+        .with_window_icon(Some(
+            load_icon(ICON_DATA).map_err(|e| anyhow!("Failed to load icon - {e}"))?,
+        ))
         .with_skip_taskbar(!cfg!(debug_assertions))
         .with_undecorated_shadow(cfg!(debug_assertions))
         .with_always_on_top(true)
@@ -74,4 +77,16 @@ fn set_mouse_penetrable_layered_window(hwnd: isize) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn load_icon(icon_data: &[u8]) -> Result<Icon> {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::load_from_memory(icon_data)
+            .context("Failed to open icon path")?
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    Icon::from_rgba(icon_rgba, icon_width, icon_height).context("Failed to crate the logo")
 }

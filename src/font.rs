@@ -5,8 +5,8 @@ use piet_common::{
     BitmapTarget, Color, Device, FontFamily, RenderContext, Text, TextLayout, TextLayoutBuilder,
 };
 
-const DARK: u32 = 0x000000cc;
-const LIGHT: u32 = 0xffffffcc;
+const WHITE: u32 = 0xffffffcc;
+const BLACK: u32 = 0x1F1F1Fcc;
 
 pub fn get_font_bitmap<'a>(
     device: &'a mut Device,
@@ -19,13 +19,14 @@ pub fn get_font_bitmap<'a>(
     let mut bitmap_target = device
         .bitmap_target(width as usize, height as usize, 1.0)
         .map_err(|e| anyhow!("Failed to create a new bitmap target. - {e}"))?;
+
     let mut piet = bitmap_target.render_context();
     piet.clear(None, Color::TRANSPARENT);
 
-    let follow_system_theme = follow_system_theme.lock().unwrap();
-    let color = match *follow_system_theme {
-        Some(theme) =>  if theme == Theme::Dark { LIGHT } else { DARK },
-        None => LIGHT,
+    let color = if let Some(Theme::Dark) = *follow_system_theme.lock().unwrap() {
+        WHITE
+    } else {
+        BLACK
     };
 
     // Dynamically calculated font size
