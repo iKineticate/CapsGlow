@@ -1,5 +1,5 @@
 use crate::language::{Language, Localization};
-use crate::startup::is_startup_enabled;
+use crate::startup::get_startup_status;
 use crate::ICON_DATA;
 
 use anyhow::{anyhow, Context, Result};
@@ -10,7 +10,7 @@ use tray_icon::{
 
 fn create_menu() -> Result<Menu> {
     let should_startup =
-        is_startup_enabled().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
+        get_startup_status().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
     let follow_system_theme = true;
 
     let language = Language::get_system_language();

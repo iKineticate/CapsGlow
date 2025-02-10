@@ -8,10 +8,10 @@ mod window;
 
 use crate::{
     font::get_font_bitmap,
-    monitor::{get_primary_monitor_size, get_scale_factor},
-    startup::{is_startup_enabled, set_startup},
+    monitor::get_scale_factor,
+    startup::{get_startup_status, set_startup},
     tray::create_tray,
-    window::{create_window, get_window_center_position},
+    window::create_window,
 };
 
 use std::num::NonZeroU32;
@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, Result};
 use piet_common::Device;
 use tao::{
+    dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopProxy},
 };
@@ -29,12 +30,12 @@ use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
 use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
 use winreg::RegKey;
 
-const WINDOW_SIZE: f64 = 200.0;
+const WINDOW_LOGICAL_SIZE: f64 = 200.0;
 const TEXT_PADDING: f64 = 20.0;
 const PERSONALIZE_REGISTRY_KEY: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 const APPS_USE_LIGHT_THEME_REGISTRY_KEY: &str = "AppsUseLightTheme";
-pub const ICON_DATA: &[u8] = include_bytes!("logo.ico");
+const ICON_DATA: &[u8] = include_bytes!("logo.ico");
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Theme {
@@ -46,12 +47,9 @@ fn main() -> Result<()> {
     let event_loop = EventLoop::new();
 
     let scale = get_scale_factor();
-    let (pos_x, pos_y) = get_window_center_position(WINDOW_SIZE, scale)
-        .map_err(|e| anyhow!("Failed to get window center position - {e}"))?;
-
-    let window = create_window(&event_loop, pos_x, pos_y, WINDOW_SIZE)
-        .map_err(|e| anyhow!("Failed to create window - {e}"))?;
-
+    let window =
+        create_window(&event_loop, scale).map_err(|e| anyhow!("Failed to create window - {e}"))?;
+    let mut device = Device::new().map_err(|e| anyhow!("Failed to create device - {e}"))?;
     let (window, _context, mut surface) = {
         let window = std::rc::Rc::new(window);
         let context = softbuffer::Context::new(window.clone())
@@ -61,25 +59,18 @@ fn main() -> Result<()> {
         (window, context, surface)
     };
 
-    let mut device =
-        Device::new().map_err(|e| anyhow!("Failed to create struct 'Device' - {e}"))?;
-
     let _tray_icon = create_tray().map_err(|e| anyhow!("Failed to create tray icon. - {e}"))?;
-
     let menu_channel = MenuEvent::receiver();
 
     let event_loop_proxy = event_loop.create_proxy();
-
     let last_caps_state = Arc::new(Mutex::new(false));
     let follow_system_theme = Arc::new(Mutex::new(Some(get_windows_theme())));
 
-    let last_caps_state_thread = Arc::clone(&last_caps_state);
-    let follow_system_theme_thread = Arc::clone(&follow_system_theme);
-    listen_capslock(
-        last_caps_state_thread,
-        follow_system_theme_thread,
-        event_loop_proxy,
-    );
+    {
+        let last_caps_state = Arc::clone(&last_caps_state);
+        let follow_system_theme = Arc::clone(&follow_system_theme);
+        listen_capslock(last_caps_state, follow_system_theme, event_loop_proxy);
+    }
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(150));
@@ -89,7 +80,7 @@ fn main() -> Result<()> {
                 "quit" => *control_flow = ControlFlow::Exit,
                 "startup" => {
                     let should_startup =
-                        !is_startup_enabled().expect("Failed to get startup status");
+                        !get_startup_status ().expect("Failed to get startup status");
                     set_startup(should_startup).expect("Failed to set Launch at Startup")
                 },
                 "theme" => {
@@ -101,27 +92,22 @@ fn main() -> Result<()> {
         }
 
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => *control_flow = ControlFlow::Exit,
             Event::UserEvent(()) => window.request_redraw(),
             Event::RedrawRequested(_) => {
-                let current_caps_state = Arc::clone(&last_caps_state);
-                let current_caps_state = *current_caps_state.lock().unwrap();
+                let current_caps_state = *last_caps_state.lock().unwrap();
 
                 let (mut width, mut height) = (window.inner_size().width, window.inner_size().height);
-                if width as f64 != WINDOW_SIZE * scale
-                    || height as f64 != WINDOW_SIZE * scale
-                {
-                    window.set_inner_size(tao::dpi::LogicalSize::new(WINDOW_SIZE, WINDOW_SIZE));
-                    (width, height) = ((WINDOW_SIZE * scale) as u32, (WINDOW_SIZE * scale) as u32);
+                let window_physical_size = (WINDOW_LOGICAL_SIZE * scale) as u32;
+                if width != window_physical_size || height != window_physical_size {
+                    window.set_inner_size(LogicalSize::new(WINDOW_LOGICAL_SIZE, WINDOW_LOGICAL_SIZE));
+                    (width, height) = (window_physical_size, window_physical_size);
                 }
 
                 surface
                     .resize(
-                        NonZeroU32::new(width as u32).unwrap(),
-                        NonZeroU32::new(height as u32).unwrap(),
+                        NonZeroU32::new(width).unwrap(),
+                        NonZeroU32::new(height).unwrap(),
                     )
                     .expect("Failed to set the size of the buffer");
 

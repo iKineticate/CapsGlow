@@ -1,4 +1,5 @@
-use crate::{get_primary_monitor_size, ICON_DATA};
+use crate::monitor::get_primary_monitor_logical_size;
+use crate::{ICON_DATA, WINDOW_LOGICAL_SIZE};
 
 use anyhow::{anyhow, Context, Result};
 use tao::{
@@ -17,23 +18,26 @@ use windows::Win32::{
     },
 };
 
-pub fn get_window_center_position(size: f64, scale: f64) -> Result<(f64, f64)> {
-    let (monitor_width, monitor_height) = get_primary_monitor_size()
-        .map_err(|e| anyhow!("Failed to get primary monitor size- {e}"))?;
-    let window_size_logical = size * scale;
-    let pos_x = ((monitor_width - window_size_logical) / 2.0) / scale;
-    let pos_y = ((monitor_height - window_size_logical) / 2.0) / scale;
-    Ok((pos_x, pos_y))
+fn get_window_center_position(scale: f64) -> Result<(f64, f64)> {
+    let (monitor_logical_width, monitor_logical_height) =
+        get_primary_monitor_logical_size(scale)
+            .map_err(|e| anyhow!("Failed to get primary monitor size- {e}"))?;
+    let pos_logical_x = (monitor_logical_width - WINDOW_LOGICAL_SIZE) / 2.0;
+    let pos_logical_y = (monitor_logical_height - WINDOW_LOGICAL_SIZE) / 2.0;
+    Ok((pos_logical_x, pos_logical_y))
 }
 
-pub fn create_window(event_loop: &EventLoop<()>, x: f64, y: f64, size: f64) -> Result<Window> {
+pub fn create_window(event_loop: &EventLoop<()>, scale: f64) -> Result<Window> {
+    let (pos_logical_x, pos_logical_y) = get_window_center_position(scale)
+        .map_err(|e| anyhow!("Failed to get window center position - {e}"))?;
+
     let window = WindowBuilder::new()
         .with_title("CapsLock")
         .with_window_icon(Some(
             load_icon(ICON_DATA).map_err(|e| anyhow!("Failed to load icon - {e}"))?,
         ))
-        .with_inner_size(LogicalSize::new(size, size))
-        .with_position(LogicalPosition::new(x, y))
+        .with_inner_size(LogicalSize::new(WINDOW_LOGICAL_SIZE, WINDOW_LOGICAL_SIZE))
+        .with_position(LogicalPosition::new(pos_logical_x, pos_logical_y))
         .with_skip_taskbar(!cfg!(debug_assertions))
         .with_undecorated_shadow(cfg!(debug_assertions))
         .with_always_on_top(true)

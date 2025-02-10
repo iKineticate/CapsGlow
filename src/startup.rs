@@ -30,7 +30,7 @@ pub fn set_startup(enabled: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn is_startup_enabled() -> Result<bool> {
+pub fn get_startup_status() -> Result<bool> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let run_key = hkcu
         .open_subkey_with_flags(RUN_KEY, KEY_READ)
