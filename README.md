@@ -16,8 +16,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [x] Launch at Startup
 - [x] 开机自启动
 ---
-- [x] 跟随系统主题
 - [x] Follow System Theme
+- [x] 跟随系统主题
 ---
 - [x] When launched with administrator privileges, the software has a higher priority for being always on top.
 - [x] 以管理员权限启动时，软件置顶优先级更高
