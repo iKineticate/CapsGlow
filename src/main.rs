@@ -4,6 +4,7 @@ mod language;
 mod monitor;
 mod startup;
 mod tray;
+mod uiaccess;
 mod window;
 
 use crate::{
@@ -11,6 +12,7 @@ use crate::{
     monitor::get_scale_factor,
     startup::{get_startup_status, set_startup},
     tray::create_tray,
+    uiaccess::prepare_uiaccess_token,
     window::create_window,
 };
 
@@ -44,6 +46,8 @@ pub enum Theme {
 }
 
 fn main() -> Result<()> {
+    let _ = prepare_uiaccess_token();
+
     let event_loop = EventLoop::new();
 
     let scale = get_scale_factor();

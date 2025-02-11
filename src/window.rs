@@ -40,12 +40,12 @@ pub fn create_window(event_loop: &EventLoop<()>, scale: f64) -> Result<Window> {
         .with_position(LogicalPosition::new(pos_logical_x, pos_logical_y))
         .with_skip_taskbar(!cfg!(debug_assertions))
         .with_undecorated_shadow(cfg!(debug_assertions))
+        .with_content_protection(!cfg!(debug_assertions))
         .with_always_on_top(true)
         .with_decorations(false)
         .with_transparent(true)
         .with_resizable(false)
         .with_focused(false)
-        .with_content_protection(true)
         .build(event_loop)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
