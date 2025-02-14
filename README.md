@@ -16,6 +16,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [x] Launch at Startup
 - [x] 开机自启动
 ---
+- [x] Follow Indicator Area Theme (default on)
+- [x] 跟随指示器区域主题（默认开启）
+---
 - [x] Follow System Theme
 - [x] 跟随系统主题
 ---

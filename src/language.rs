@@ -22,6 +22,8 @@ pub struct Localization {
     pub about: &'static str,
     pub startup: &'static str,
     pub follow_system_theme: &'static str,
+    pub follow_indicator_area_theme: &'static str,
+    pub theme: &'static str,
 }
 
 const ZH_CN: Localization = Localization {
@@ -29,6 +31,8 @@ const ZH_CN: Localization = Localization {
     about: "关于",
     startup: "开机自启",
     follow_system_theme: "跟随系统主题",
+    follow_indicator_area_theme: "跟随指示器区域主题",
+    theme: "主题",
 };
 
 const ZH_HANT: Localization = Localization {
@@ -36,6 +40,8 @@ const ZH_HANT: Localization = Localization {
     about: "關于",
     startup: "開機自啓",
     follow_system_theme: "跟隨系統主題",
+    follow_indicator_area_theme: "跟随指示器区域主题",
+    theme: "主題",
 };
 
 const EN_US: Localization = Localization {
@@ -43,6 +49,8 @@ const EN_US: Localization = Localization {
     about: "About",
     startup: "Launch at Startup",
     follow_system_theme: "Follow System Theme",
+    follow_indicator_area_theme: "Follow Indicator Area Theme",
+    theme: "Theme",
 };
 
 const JA_JP: Localization = Localization {
@@ -50,6 +58,8 @@ const JA_JP: Localization = Localization {
     about: "約",
     startup: "スタートアップで起動",
     follow_system_theme: "システムテーマに従う",
+    follow_indicator_area_theme: "インジケーターエリアのテーマに従う",
+    theme: "テーマ",
 };
 
 const KO_KR: Localization = Localization {
@@ -57,6 +67,8 @@ const KO_KR: Localization = Localization {
     about: "정보",
     startup: "시작 시 실행",
     follow_system_theme: "시스템 테마 따르기",
+    follow_indicator_area_theme: "지시기 영역 테마 따르기",
+    theme: "테마",
 };
 
 const DE_DE: Localization = Localization {
@@ -64,6 +76,8 @@ const DE_DE: Localization = Localization {
     about: "Über",
     startup: "Beim Start ausführen",
     follow_system_theme: "Systemthema folgen",
+    follow_indicator_area_theme: "Indikatorbereichsthema folgen",
+    theme: "Thema",
 };
 
 const RU_RU: Localization = Localization {
@@ -71,6 +85,8 @@ const RU_RU: Localization = Localization {
     about: "О программе",
     startup: "Запуск при старте",
     follow_system_theme: "Следовать системной теме",
+    follow_indicator_area_theme: "Следовать теме области индикатора",
+    theme: "Тема",
 };
 
 const AR_SA: Localization = Localization {
@@ -78,6 +94,8 @@ const AR_SA: Localization = Localization {
     about: "حول",
     startup: "تشغيل عند بدء التشغيل",
     follow_system_theme: "اتبع موضوع النظام",
+    follow_indicator_area_theme: "اتبع موضوع منطقة المؤشر",
+    theme: "موضوع",
 };
 
 const FR_FR: Localization = Localization {
@@ -85,6 +103,8 @@ const FR_FR: Localization = Localization {
     about: "À propos",
     startup: "Lancer au démarrage",
     follow_system_theme: "Suivre le thème du système",
+    follow_indicator_area_theme: "Suivre le thème de la zone de l'indicateur",
+    theme: "Thème",
 };
 
 impl Language {

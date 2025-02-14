@@ -3,15 +3,15 @@ use crate::startup::get_startup_status;
 use crate::ICON_DATA;
 
 use anyhow::{anyhow, Context, Result};
+use tray_icon::menu::{IsMenuItem, Submenu};
 use tray_icon::{
     menu::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     Icon, TrayIcon, TrayIconBuilder,
 };
 
-fn create_menu() -> Result<Menu> {
+fn create_menu() -> Result<(Menu, CheckMenuItem, CheckMenuItem)> {
     let should_startup =
         get_startup_status().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
-    let follow_system_theme = true;
 
     let language = Language::get_system_language();
     let loc = Localization::get(language);
@@ -30,13 +30,31 @@ fn create_menu() -> Result<Menu> {
         }),
     );
     let menu_startup = CheckMenuItem::with_id("startup", loc.startup, true, should_startup, None);
-    let menu_theme = CheckMenuItem::with_id(
-        "theme",
-        loc.follow_system_theme,
+
+    let menu_follow_indicator_area_theme = CheckMenuItem::with_id(
+        "follow_indicator_area_theme",
+        loc.follow_indicator_area_theme,
         true,
-        follow_system_theme,
+        true,
         None,
     );
+
+    let menu_follow_system_theme = CheckMenuItem::with_id(
+        "follow_system_theme",
+        loc.follow_system_theme,
+        true,
+        false,
+        None,
+    );
+
+    let menu_theme = Submenu::with_items(
+        loc.theme,
+        true,
+        &[
+            &menu_follow_indicator_area_theme as &dyn IsMenuItem,
+            &menu_follow_system_theme as &dyn IsMenuItem,
+        ],
+    )?;
 
     tray_menu
         .append(&menu_theme)
@@ -57,19 +75,30 @@ fn create_menu() -> Result<Menu> {
         .append(&menu_quit)
         .context("Failed to apped 'Quit' to Tray Menu")?;
 
-    Ok(tray_menu)
+    Ok((
+        tray_menu,
+        menu_follow_indicator_area_theme,
+        menu_follow_system_theme,
+    ))
 }
 
-pub fn create_tray() -> Result<TrayIcon> {
-    let tray_menu = create_menu().map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
+pub fn create_tray() -> Result<(TrayIcon, CheckMenuItem, CheckMenuItem)> {
+    let (tray_menu, menu_follow_indicator_area_theme, menu_follow_system_theme) =
+        create_menu().map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
 
-    TrayIconBuilder::new()
+    let tray_icon = TrayIconBuilder::new()
         .with_menu_on_left_click(true)
         .with_icon(load_icon(ICON_DATA).map_err(|e| anyhow!("Failed to load icon - {e}"))?)
         .with_tooltip("CapsGlow")
         .with_menu(Box::new(tray_menu))
         .build()
-        .map_err(|e| anyhow!("Failed to build tray - {e}"))
+        .map_err(|e| anyhow!("Failed to build tray - {e}"))?;
+
+    Ok((
+        tray_icon,
+        menu_follow_indicator_area_theme,
+        menu_follow_system_theme,
+    ))
 }
 
 fn load_icon(icon_data: &[u8]) -> Result<Icon> {

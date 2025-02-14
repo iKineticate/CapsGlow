@@ -6,17 +6,17 @@ use tao::{
     dpi::{LogicalPosition, LogicalSize},
     event_loop::EventLoop,
     platform::windows::WindowBuilderExtWindows,
-    platform::windows::WindowExtWindows,
+    // platform::windows::WindowExtWindows,
     window::{Icon, Window, WindowBuilder},
 };
-use windows::Win32::{
-    Foundation::{GetLastError, SetLastError, HWND, WIN32_ERROR},
-    Graphics::Gdi::UpdateWindow,
-    UI::WindowsAndMessaging::{
-        SetLayeredWindowAttributes, SetWindowLongPtrW, ShowWindow, GWL_EXSTYLE,
-        LAYERED_WINDOW_ATTRIBUTES_FLAGS, SW_SHOW, WS_EX_LAYERED, WS_EX_TRANSPARENT,
-    },
-};
+// use windows::Win32::{
+//     Foundation::{GetLastError, SetLastError, HWND, WIN32_ERROR},
+//     Graphics::Gdi::UpdateWindow,
+//     UI::WindowsAndMessaging::{
+//         SetLayeredWindowAttributes, SetWindowLongPtrW, ShowWindow, GWL_EXSTYLE,
+//         LAYERED_WINDOW_ATTRIBUTES_FLAGS, SW_SHOW, WS_EX_LAYERED, WS_EX_TRANSPARENT,
+//     },
+// };
 
 fn get_window_center_position(scale: f64) -> Result<(f64, f64)> {
     let (monitor_logical_width, monitor_logical_height) =
@@ -49,39 +49,41 @@ pub fn create_window(event_loop: &EventLoop<()>, scale: f64) -> Result<Window> {
         .build(event_loop)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    set_mouse_penetrable_layered_window(window.hwnd())
-        .map_err(|e| anyhow!("Failed to set mouse penetrable layered window - {e}"))?;
+    window.set_ignore_cursor_events(true)?;
+
+    // set_mouse_penetrable_layered_window(window.hwnd())
+    //     .map_err(|e| anyhow!("Failed to set mouse penetrable layered window - {e}"))?;
 
     Ok(window)
 }
 
-fn set_mouse_penetrable_layered_window(hwnd: isize) -> Result<()> {
-    unsafe {
-        let hwnd = HWND(hwnd as _);
-        let ex_style = WS_EX_LAYERED | WS_EX_TRANSPARENT;
-        SetLastError(WIN32_ERROR(0));
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style.0 as isize);
-        if GetLastError().0 == 0 {
-            SetLayeredWindowAttributes(
-                hwnd,
-                windows::Win32::Foundation::COLORREF(0), /* crKey */
-                255,                                     /* Alpha: 0 ~ 255 */
-                LAYERED_WINDOW_ATTRIBUTES_FLAGS(0x00000002), /* LWA_ALPHA: 0x00000002(窗口透明), LWA_COLORKEY: 0x0x00000001(指定crKey颜色透明) */
-            ).context("Failed to set the opacity of a layered window.")?;
-            ShowWindow(hwnd, SW_SHOW)
-                .ok()
-                .map_err(|e| anyhow!("Failed to show window - {e}"))?;
-            UpdateWindow(hwnd)
-                .ok()
-                .map_err(|e| anyhow!("Failed to update window - {e}"))?;
-        } else {
-            return Err(anyhow!(
-                "Failed to set 'WS_EX_LAYERED' and 'WS_EX_TRANSPARENT' of window"
-            ));
-        }
-    }
-    Ok(())
-}
+// fn set_mouse_penetrable_layered_window(hwnd: isize) -> Result<()> {
+//     unsafe {
+//         let hwnd = HWND(hwnd as _);
+//         let ex_style = WS_EX_LAYERED | WS_EX_TRANSPARENT;
+//         SetLastError(WIN32_ERROR(0));
+//         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style.0 as isize);
+//         if GetLastError().0 == 0 {
+//             SetLayeredWindowAttributes(
+//                 hwnd,
+//                 windows::Win32::Foundation::COLORREF(0), /* crKey */
+//                 255,                                     /* Alpha: 0 ~ 255 */
+//                 LAYERED_WINDOW_ATTRIBUTES_FLAGS(0x00000002), /* LWA_ALPHA: 0x00000002(窗口透明), LWA_COLORKEY: 0x0x00000001(指定crKey颜色透明) */
+//             ).context("Failed to set the opacity of a layered window.")?;
+//             ShowWindow(hwnd, SW_SHOW)
+//                 .ok()
+//                 .map_err(|e| anyhow!("Failed to show window - {e}"))?;
+//             UpdateWindow(hwnd)
+//                 .ok()
+//                 .map_err(|e| anyhow!("Failed to update window - {e}"))?;
+//         } else {
+//             return Err(anyhow!(
+//                 "Failed to set 'WS_EX_LAYERED' and 'WS_EX_TRANSPARENT' of window"
+//             ));
+//         }
+//     }
+//     Ok(())
+// }
 
 fn load_icon(icon_data: &[u8]) -> Result<Icon> {
     let (icon_rgba, icon_width, icon_height) = {
