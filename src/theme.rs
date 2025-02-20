@@ -29,15 +29,15 @@ pub fn get_windows_theme() -> Theme {
 pub fn get_indicator_area_theme() -> Theme {
     unsafe {
         let hdc_screen = GetDC(None);
+
         let scale = get_scale_factor();
         let img_size = ((WINDOW_LOGICAL_SIZE - TEXT_PADDING) * scale) as i32;
-
         let screen_width = GetDeviceCaps(Some(hdc_screen), HORZRES);
         let screen_height = GetDeviceCaps(Some(hdc_screen), VERTRES);
-        println!("{}\n{}", screen_width, screen_height);
         if screen_width < img_size || screen_height < img_size {
             return Theme::Light;
         }
+
         let x_start = (screen_width - img_size) / 2;
         let y_start = (screen_height - img_size) / 2;
         let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
@@ -88,13 +88,14 @@ pub fn get_indicator_area_theme() -> Theme {
             .chunks_exact(4)
             .map(|chunk| {
                 // 注意Windows的GDI返回BGR格式
-                0.299 * chunk[2] as f32 +  // R
-                0.587 * chunk[1] as f32 +  // G
-                0.114 * chunk[0] as f32 // B
+                let r = chunk[2] as f32;
+                let g = chunk[1] as f32;
+                let b = chunk[0] as f32;
+                0.2126 * r + 0.7152 * g + 0.0722 * b // 亮度计算公式
             })
             .sum();
 
-        let avg = total_brightness / (200.0 * 200.0 * 255.0);
+        let avg = total_brightness / (img_size * img_size * 255) as f32;
 
         DeleteObject(h_bitmap.into()).unwrap();
         DeleteDC(hdc_mem).unwrap();
