@@ -1,14 +1,15 @@
 use crate::{monitor::get_scale_factor, Theme, TEXT_PADDING, WINDOW_LOGICAL_SIZE};
 
 use windows::Win32::Graphics::Gdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
-    GetDIBits, GetDeviceCaps, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DIB_RGB_COLORS, HORZRES, SRCCOPY, VERTRES,
+    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
+    GetDeviceCaps, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HORZRES,
+    SRCCOPY, VERTRES,
 };
 use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
 use winreg::RegKey;
 
-const PERSONALIZE_REGISTRY_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
+const PERSONALIZE_REGISTRY_KEY: &str =
+    r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 const APPS_USE_LIGHT_THEME_REGISTRY_KEY: &str = "AppsUseLightTheme";
 
 pub fn get_windows_theme() -> Theme {
@@ -45,7 +46,7 @@ pub fn get_indicator_area_theme() -> Theme {
         let _old_bitmap = SelectObject(hdc_mem, h_bitmap.into());
 
         // Capture the target area
-        if let Err(_) = BitBlt(
+        if BitBlt(
             hdc_mem,
             0,
             0,
@@ -55,7 +56,7 @@ pub fn get_indicator_area_theme() -> Theme {
             x_start,
             y_start,
             SRCCOPY,
-        ) {
+        ).is_err() {
             return Theme::Light;
         };
 

@@ -1,6 +1,6 @@
 use std::ops::DerefMut;
 
-use crate::{ThemeDetectionSource, Theme};
+use crate::{Theme, ThemeDetectionSource};
 
 use anyhow::{anyhow, Result};
 use piet_common::{
@@ -8,7 +8,7 @@ use piet_common::{
 };
 
 const WHITE: u32 = 0xffffffcc;
-const BLACK: u32 = 0x1F1F1Fcc;
+const BLACK: u32 = 0x1F1F1FCC;
 
 pub fn render_font_to_sufface(
     buffer: &mut softbuffer::Buffer<
@@ -44,14 +44,14 @@ pub fn render_font_to_sufface(
     Ok(())
 }
 
-fn get_font_bitmap<'a>(
-    device: &'a mut Device,
+fn get_font_bitmap(
+    device: &mut Device,
     window_physical_width: u32,
     window_physical_height: u32,
     text_padding: f64,
     scale: f64,
     follow_system_theme: Option<(ThemeDetectionSource, Theme)>,
-) -> Result<BitmapTarget<'a>> {
+) -> Result<BitmapTarget<'_>> {
     let mut bitmap_target = device
         .bitmap_target(
             window_physical_width as usize,

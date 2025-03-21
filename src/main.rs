@@ -3,19 +3,19 @@ mod font;
 mod language;
 mod monitor;
 mod startup;
+mod theme;
 mod tray;
 mod uiaccess;
 mod window;
-mod theme;
 
 use crate::{
     font::render_font_to_sufface,
     monitor::get_scale_factor,
     startup::{get_startup_status, set_startup},
+    theme::{get_indicator_area_theme, get_windows_theme},
     tray::create_tray,
     uiaccess::prepare_uiaccess_token,
     window::create_window,
-    theme::{get_indicator_area_theme, get_windows_theme},
 };
 
 use std::num::NonZeroU32;
@@ -26,7 +26,7 @@ use anyhow::{anyhow, Result};
 use tao::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopProxy},
+    event_loop::{ControlFlow, EventLoop, EventLoopProxy}, platform::windows::WindowExtWindows,
 };
 use tray_icon::menu::MenuEvent;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
@@ -48,9 +48,7 @@ pub enum ThemeDetectionSource {
 }
 
 fn main() -> Result<()> {
-    if let Ok(()) = prepare_uiaccess_token() {
-        println!("Successful acquisition of Uiaccess")
-    };
+    let _ = prepare_uiaccess_token().inspect(|_| println!("Successful acquisition of Uiaccess"));
 
     let event_loop = EventLoop::new();
 
@@ -97,7 +95,8 @@ fn main() -> Result<()> {
                     let mut follow_theme = follow_theme.lock().unwrap();
                     if menu_follow_indicator_area_theme.is_checked() {
                         menu_follow_system_theme.set_checked(false);
-                        *follow_theme = Some((ThemeDetectionSource::CenterArea, get_indicator_area_theme()))
+                        *follow_theme =
+                            Some((ThemeDetectionSource::CenterArea, get_indicator_area_theme()))
                     } else {
                         *follow_theme = None;
                     }
@@ -158,6 +157,7 @@ fn main() -> Result<()> {
                 }
 
                 buffer.present().unwrap();
+                let _ = window.set_skip_taskbar(true).inspect_err(|e| println!("{e}"));
             }
             _ => (),
         }
@@ -178,7 +178,7 @@ fn listen_capslock(
             let current_caps_state = unsafe { (GetKeyState(0x14) & 0x0001) != 0 };
             let mut last_caps_state = last_caps_state.lock().unwrap();
             if current_caps_state != *last_caps_state {
-                if current_caps_state == true {
+                if current_caps_state {
                     if let Ok(mut follow_theme) = follow_theme.try_lock() {
                         *follow_theme = follow_theme.map(|(f, _)| {
                             if f == ThemeDetectionSource::CenterArea {

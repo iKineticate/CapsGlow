@@ -1,24 +1,24 @@
 [package]
 name = "CapsGlow"
 version = "0.1.2"
-edition = "2021"
+edition = "2024"
 description = "Windows Capslock Indicator"
 authors = ["iKineticate"]
 license = "MIT License"
 repository = "https://github.com/iKineticate/CapsGlow"
 
 [dependencies]
-tao = "0.31.1"
+tao = "0.32.8"
 softbuffer = "0.4.6"
 piet-common = "0.7.0"
-bytemuck = "1.21.0"
-tray-icon = "0.19.2"
+bytemuck = "1.22.0"
+tray-icon = "0.20.0"
 image = "0.25"
 winreg = "0.55"
-anyhow = "1.0.95"
+anyhow = "1.0.97"
 
 [dependencies.windows]
-version = "0.59.0"
+version = "0.61.1"
 features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
@@ -36,7 +36,7 @@ features = [
 ]
 
 [build-dependencies]
-embed-resource = "3.0.1"
+embed-resource = "3.0.2"
 
 [profile.release]
 lto = "fat"

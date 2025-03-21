@@ -6,9 +6,9 @@ use std::{ffi::c_void, ptr::addr_of_mut};
 
 use anyhow::Result;
 use windows::{
-    core::PWSTR,
+    core::{PWSTR, BOOL},
     Win32::{
-        Foundation::{CloseHandle, BOOL, HANDLE, INVALID_HANDLE_VALUE},
+        Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE},
         Security::{
             DuplicateTokenEx, GetTokenInformation, LookupPrivilegeValueW, PrivilegeCheck,
             SecurityAnonymous, SecurityImpersonation, SetTokenInformation, TokenImpersonation,
@@ -224,7 +224,7 @@ pub fn prepare_uiaccess_token() -> Result<()> {
             PROCESS_CREATION_FLAGS::default(),
             None,
             None,
-            &mut startup_info,
+            &startup_info,
             &mut process_info,
         )?;
 
