@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Context, Result};
-use winreg::enums::*;
+use anyhow::{Context, Result, anyhow};
 use winreg::RegKey;
+use winreg::enums::*;
 
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 

@@ -6,30 +6,30 @@ use std::{ffi::c_void, ptr::addr_of_mut};
 
 use anyhow::Result;
 use windows::{
-    core::{PWSTR, BOOL},
     Win32::{
         Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE},
         Security::{
-            DuplicateTokenEx, GetTokenInformation, LookupPrivilegeValueW, PrivilegeCheck,
-            SecurityAnonymous, SecurityImpersonation, SetTokenInformation, TokenImpersonation,
-            TokenPrimary, TokenSessionId, TokenUIAccess, PRIVILEGE_SET, SE_TCB_NAME,
-            TOKEN_ACCESS_MASK, TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE,
-            TOKEN_IMPERSONATE, TOKEN_QUERY,
+            DuplicateTokenEx, GetTokenInformation, LookupPrivilegeValueW, PRIVILEGE_SET,
+            PrivilegeCheck, SE_TCB_NAME, SecurityAnonymous, SecurityImpersonation,
+            SetTokenInformation, TOKEN_ACCESS_MASK, TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY,
+            TOKEN_DUPLICATE, TOKEN_IMPERSONATE, TOKEN_QUERY, TokenImpersonation, TokenPrimary,
+            TokenSessionId, TokenUIAccess,
         },
         System::{
             Diagnostics::ToolHelp::{
-                CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32,
+                CreateToolhelp32Snapshot, PROCESSENTRY32, Process32First, Process32Next,
                 TH32CS_SNAPPROCESS,
             },
             Environment::GetCommandLineW,
             SystemServices::PRIVILEGE_SET_ALL_NECESSARY,
             Threading::{
                 CreateProcessAsUserW, ExitProcess, GetCurrentProcess, GetStartupInfoW, OpenProcess,
-                OpenProcessToken, SetThreadToken, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION,
-                PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW,
+                OpenProcessToken, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION,
+                PROCESS_QUERY_LIMITED_INFORMATION, STARTUPINFOW, SetThreadToken,
             },
         },
     },
+    core::{BOOL, PWSTR},
 };
 
 /// get token from current process

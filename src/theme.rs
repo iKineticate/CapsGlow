@@ -1,18 +1,18 @@
-use crate::{monitor::get_scale_factor, Theme, TEXT_PADDING, WINDOW_LOGICAL_SIZE};
+use crate::{TEXT_PADDING, Theme, WINDOW_LOGICAL_SIZE};
 
 use windows::Win32::Graphics::Gdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
-    GetDeviceCaps, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HORZRES,
-    SRCCOPY, VERTRES,
+    BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC,
+    DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetDIBits, GetDeviceCaps, HORZRES, SRCCOPY,
+    SelectObject, VERTRES,
 };
-use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
 use winreg::RegKey;
+use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
 
 const PERSONALIZE_REGISTRY_KEY: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 const APPS_USE_LIGHT_THEME_REGISTRY_KEY: &str = "AppsUseLightTheme";
 
-pub fn get_windows_theme() -> Theme {
+pub fn get_system_theme() -> Theme {
     let personalize_reg_key = RegKey::predef(HKEY_CURRENT_USER)
         .open_subkey_with_flags(PERSONALIZE_REGISTRY_KEY, KEY_READ | KEY_WRITE)
         .expect("This program requires Windows 10 14393 or above");
@@ -27,11 +27,10 @@ pub fn get_windows_theme() -> Theme {
     }
 }
 
-pub fn get_indicator_area_theme() -> Theme {
+pub fn get_indicator_area_theme(scale: f64) -> Theme {
     unsafe {
         let hdc_screen = GetDC(None);
 
-        let scale = get_scale_factor();
         let img_size = ((WINDOW_LOGICAL_SIZE - TEXT_PADDING) * scale) as i32;
         let screen_width = GetDeviceCaps(Some(hdc_screen), HORZRES);
         let screen_height = GetDeviceCaps(Some(hdc_screen), VERTRES);
@@ -56,7 +55,9 @@ pub fn get_indicator_area_theme() -> Theme {
             x_start,
             y_start,
             SRCCOPY,
-        ).is_err() {
+        )
+        .is_err()
+        {
             return Theme::Light;
         };
 
@@ -102,10 +103,6 @@ pub fn get_indicator_area_theme() -> Theme {
         DeleteDC(hdc_mem).unwrap();
         DeleteDC(hdc_screen).unwrap();
 
-        if avg > 0.5 {
-            Theme::Light
-        } else {
-            Theme::Dark
-        }
+        if avg > 0.5 { Theme::Light } else { Theme::Dark }
     }
 }

@@ -1,12 +1,12 @@
+use crate::ICON_DATA;
 use crate::language::{Language, Localization};
 use crate::startup::get_startup_status;
-use crate::ICON_DATA;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use tray_icon::menu::{IsMenuItem, Submenu};
 use tray_icon::{
-    menu::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     Icon, TrayIcon, TrayIconBuilder,
+    menu::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
 };
 
 fn create_menu() -> Result<(Menu, CheckMenuItem, CheckMenuItem)> {

@@ -2,7 +2,7 @@ use std::ops::DerefMut;
 
 use crate::{Theme, ThemeDetectionSource};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use piet_common::{
     BitmapTarget, Color, Device, FontFamily, RenderContext, Text, TextLayout, TextLayoutBuilder,
 };
@@ -13,8 +13,8 @@ const BLACK: u32 = 0x1F1F1FCC;
 pub fn render_font_to_sufface(
     buffer: &mut softbuffer::Buffer<
         '_,
-        std::rc::Rc<tao::window::Window>,
-        std::rc::Rc<tao::window::Window>,
+        std::rc::Rc<winit::window::Window>,
+        std::rc::Rc<winit::window::Window>,
     >,
     window_physical_width: u32,
     window_physical_height: u32,

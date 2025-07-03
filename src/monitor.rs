@@ -2,12 +2,12 @@ use anyhow::Result;
 use windows::Win32::{
     Foundation::POINT,
     Graphics::Gdi::{
-        GetDC, GetDeviceCaps, GetMonitorInfoW, MonitorFromPoint, ReleaseDC, LOGPIXELSX,
-        MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+        GetDC, GetDeviceCaps, GetMonitorInfoW, LOGPIXELSX, MONITOR_DEFAULTTOPRIMARY, MONITORINFO,
+        MonitorFromPoint, ReleaseDC,
     },
 };
 
-pub fn get_primary_monitor_logical_size(scale: f64) -> Result<(f64, f64)> {
+pub fn get_primary_monitor_phy_size() -> Result<(f64, f64)> {
     unsafe {
         let mut info: MONITORINFO = std::mem::zeroed();
         info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
@@ -15,8 +15,8 @@ pub fn get_primary_monitor_logical_size(scale: f64) -> Result<(f64, f64)> {
         GetMonitorInfoW(monitor, &mut info).ok()?;
 
         Ok((
-            (info.rcMonitor.right - info.rcMonitor.left) as f64 / scale,
-            (info.rcMonitor.bottom - info.rcMonitor.top) as f64 / scale,
+            (info.rcMonitor.right - info.rcMonitor.left) as f64,
+            (info.rcMonitor.bottom - info.rcMonitor.top) as f64,
         ))
     }
 }
