@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ICON_DATA;
 use crate::language::{Language, Localization};
 use crate::startup::get_startup_status;
@@ -9,7 +11,7 @@ use tray_icon::{
     menu::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
 };
 
-fn create_menu() -> Result<(Menu, CheckMenuItem, CheckMenuItem)> {
+fn create_menu() -> Result<(Menu, HashMap<String, CheckMenuItem>)> {
     let should_startup =
         get_startup_status().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
 
@@ -23,7 +25,7 @@ fn create_menu() -> Result<(Menu, CheckMenuItem, CheckMenuItem)> {
         Some(loc.about),
         Some(AboutMetadata {
             name: Some("CapsGlow".to_owned()),
-            version: Some("0.1.2".to_owned()),
+            version: Some("0.1.3".to_owned()),
             authors: Some(vec!["iKineticate".to_owned()]),
             website: Some("https://github.com/iKineticate/CapsGlow".to_owned()),
             ..Default::default()
@@ -75,15 +77,18 @@ fn create_menu() -> Result<(Menu, CheckMenuItem, CheckMenuItem)> {
         .append(&menu_quit)
         .context("Failed to apped 'Quit' to Tray Menu")?;
 
-    Ok((
-        tray_menu,
+    let mut tray_check_menus = HashMap::new();
+    tray_check_menus.insert(
+        "follow_indicator_area_theme".into(),
         menu_follow_indicator_area_theme,
-        menu_follow_system_theme,
-    ))
+    );
+    tray_check_menus.insert("follow_system_theme".into(), menu_follow_system_theme);
+
+    Ok((tray_menu, tray_check_menus))
 }
 
-pub fn create_tray() -> Result<(TrayIcon, CheckMenuItem, CheckMenuItem)> {
-    let (tray_menu, menu_follow_indicator_area_theme, menu_follow_system_theme) =
+pub fn create_tray() -> Result<(TrayIcon, HashMap<String, CheckMenuItem>)> {
+    let (tray_menu, tray_check_menus) =
         create_menu().map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
 
     let tray_icon = TrayIconBuilder::new()
@@ -94,11 +99,7 @@ pub fn create_tray() -> Result<(TrayIcon, CheckMenuItem, CheckMenuItem)> {
         .build()
         .map_err(|e| anyhow!("Failed to build tray - {e}"))?;
 
-    Ok((
-        tray_icon,
-        menu_follow_indicator_area_theme,
-        menu_follow_system_theme,
-    ))
+    Ok((tray_icon, tray_check_menus))
 }
 
 fn load_icon(icon_data: &[u8]) -> Result<Icon> {
@@ -110,6 +111,5 @@ fn load_icon(icon_data: &[u8]) -> Result<Icon> {
         let rgba = image.into_raw();
         (rgba, width, height)
     };
-    tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
-        .context("Failed to crate the logo")
+    Icon::from_rgba(icon_rgba, icon_width, icon_height).context("Failed to crate the logo")
 }
