@@ -9,20 +9,23 @@ mod uiaccess;
 
 use crate::{
     font::render_font_to_sufface,
-    monitor::{get_primary_monitor_phy_size, get_scale_factor},
+    monitor::{MonitorSelector, WindowPosition, get_scale_factor},
     startup::{get_startup_status, set_startup},
     theme::{get_indicator_area_theme, get_system_theme},
     tray::create_tray,
     uiaccess::prepare_uiaccess_token,
 };
 
-use std::rc::Rc;
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    collections::HashMap,
+    num::NonZeroU32,
+    rc::Rc,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
 };
-use std::time::Duration;
-use std::{collections::HashMap, num::NonZeroU32};
 
 use anyhow::{Context, Result, anyhow};
 use softbuffer::Surface;
@@ -33,7 +36,7 @@ use tray_icon::{
 use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
 use winit::{
     application::ApplicationHandler,
-    dpi::{LogicalSize, PhysicalPosition},
+    dpi::LogicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     platform::windows::{WindowAttributesExtWindows, WindowExtWindows},
@@ -96,30 +99,39 @@ impl ThemeDetectionSource {
 struct App {
     scale_factor: f64,
     window: Option<Rc<Window>>,
+    position: MonitorSelector,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
     event_loop_proxy: Option<EventLoopProxy<UserEvent>>,
     show_indicator: Arc<AtomicBool>,
     indicator_theme: Arc<Mutex<Option<(ThemeDetectionSource, Theme)>>>,
+    // 后续可自定义深浅色指示器图标
+    custom_indicator: Option<HashMap<Vec<u8>, (u64, u64)>>, // (icon_data, (width, height))
     tray_icon: Option<TrayIcon>,
     tray_check_menus: Option<HashMap<String, CheckMenuItem>>,
 }
 
 impl Default for App {
     fn default() -> Self {
-        let scale = get_scale_factor();
+        let scale_factor = get_scale_factor();
         let indicator_theme = ThemeDetectionSource::IndicatorArea;
         let (tray_icon, tray_check_menus) = create_tray().expect("Failed to create tray icon");
 
         Self {
-            scale_factor: scale,
+            scale_factor,
             window: None,
+            position: MonitorSelector::PrimaryMonitor(
+                WindowPosition::Center,
+                WINDOW_LOGICAL_SIZE * scale_factor,
+                WINDOW_LOGICAL_SIZE * scale_factor,
+            ),
             surface: None,
             event_loop_proxy: None,
             show_indicator: Arc::new(AtomicBool::new(false)),
             indicator_theme: Arc::new(Mutex::new(Some((
                 indicator_theme,
-                indicator_theme.get_theme(scale),
+                indicator_theme.get_theme(scale_factor),
             )))),
+            custom_indicator: None,
             tray_icon: Some(tray_icon),
             tray_check_menus: Some(tray_check_menus),
         }
@@ -140,10 +152,7 @@ impl App {
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
-        let (monitor_phy_width, monitor_phy_height) = get_primary_monitor_phy_size()
-            .map_err(|e| anyhow!("Failed to get primary monitor size- {e}"))?;
-        let window_phy_x = (monitor_phy_width - WINDOW_LOGICAL_SIZE * self.scale_factor) / 2.0;
-        let window_phy_y = (monitor_phy_height - WINDOW_LOGICAL_SIZE * self.scale_factor) / 2.0;
+        let window_phy_position = self.position.get_position()?;
 
         if self.window.is_none() {
             let window = event_loop.create_window(
@@ -157,7 +166,7 @@ impl App {
                     .with_min_inner_size(LogicalSize::new(WINDOW_LOGICAL_SIZE, WINDOW_LOGICAL_SIZE))
                     .with_max_inner_size(LogicalSize::new(WINDOW_LOGICAL_SIZE, WINDOW_LOGICAL_SIZE))
                     .with_window_icon(Some(load_icon(ICON_DATA)?))
-                    .with_position(PhysicalPosition::new(window_phy_x, window_phy_y))
+                    .with_position(window_phy_position)
                     .with_decorations(false) // 隐藏标题栏
                     .with_transparent(true)
                     .with_active(false)

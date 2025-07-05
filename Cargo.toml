@@ -1,6 +1,6 @@
 [package]
 name = "CapsGlow"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 description = "Windows Capslock Indicator"
 authors = ["iKineticate"]

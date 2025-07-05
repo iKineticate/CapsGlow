@@ -19,20 +19,25 @@ fn create_menu() -> Result<(Menu, HashMap<String, CheckMenuItem>)> {
     let loc = Localization::get(language);
 
     let tray_menu = Menu::new();
-    let menu_quit = MenuItem::with_id("quit", loc.exsit, true, None);
+
     let menu_separator = PredefinedMenuItem::separator();
+
+    let menu_quit = MenuItem::with_id("quit", loc.exsit, true, None);
+
     let menu_about = PredefinedMenuItem::about(
         Some(loc.about),
         Some(AboutMetadata {
             name: Some("CapsGlow".to_owned()),
-            version: Some("0.1.3".to_owned()),
+            version: Some("0.2.0".to_owned()),
             authors: Some(vec!["iKineticate".to_owned()]),
             website: Some("https://github.com/iKineticate/CapsGlow".to_owned()),
             ..Default::default()
         }),
     );
+
     let menu_startup = CheckMenuItem::with_id("startup", loc.startup, true, should_startup, None);
 
+    // 指示器跟随主题
     let menu_follow_indicator_area_theme = CheckMenuItem::with_id(
         "follow_indicator_area_theme",
         loc.follow_indicator_area_theme,
@@ -58,9 +63,84 @@ fn create_menu() -> Result<(Menu, HashMap<String, CheckMenuItem>)> {
         ],
     )?;
 
+    // 显示位置
+    let position = [
+        ("position_center", loc.position_center),
+        ("position_left", loc.position_left),
+        ("position_right", loc.position_right),
+        ("position_top", loc.position_top),
+        ("position_bottom", loc.position_bottom),
+        ("position_top_left", loc.position_top_left),
+        ("position_top_right", loc.position_top_right),
+        ("position_bottom_left", loc.position_bottom_left),
+        ("position_bottom_right", loc.position_bottom_right)
+    ];
+
+    // Create owned CheckMenuItems first
+    let position_check_items: Vec<CheckMenuItem> = position
+        .iter()
+        .enumerate()
+        .map(|(i, (id, name))| {
+            CheckMenuItem::with_id(
+                id,
+                name,
+                true,
+                i == 0,
+                None,
+            )
+        })
+        .collect();
+
+    // Then collect references to them
+    let position_check_refs: Vec<&dyn IsMenuItem> = position_check_items
+        .iter()
+        .map(|item| item as &dyn IsMenuItem)
+        .collect();
+
+    let menu_position = Submenu::with_items(
+        loc.position,
+        true,
+        &position_check_refs,
+    )?;
+
+    // 屏幕位置选择
+    let menu_select_primary_monitor = CheckMenuItem::with_id(
+        "select_primary_monitor",
+        loc.select_primary_monitor,
+        true,
+        false,
+        None,
+    );
+
+    let menu_select_mouse_monitor = CheckMenuItem::with_id(
+        "select_mouse_monitor",
+        loc.select_mouse_monitor,
+        true,
+        true,
+        None,
+    );
+
+    let menu_monitor = Submenu::with_items(
+        loc.select_monitor,
+        true,
+        &[
+            &menu_select_primary_monitor as &dyn IsMenuItem,
+            &menu_select_mouse_monitor as &dyn IsMenuItem,
+        ],
+    )?;
+
+    tray_menu
+        .append(&menu_position)
+        .context("Failed to apped 'Follow System Theme' to Tray Menu")?;
+    tray_menu
+        .append(&menu_monitor)
+        .context("Failed to apped 'Follow System Theme' to Tray Menu")?;
     tray_menu
         .append(&menu_theme)
         .context("Failed to apped 'Follow System Theme' to Tray Menu")?;
+    tray_menu
+        .append(&menu_separator)
+        .context("Failed to apped 'Separator' to Tray Menu")?;
     tray_menu
         .append(&menu_startup)
         .context("Failed to apped 'Launch at Startup' to Tray Menu")?;
