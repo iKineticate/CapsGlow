@@ -11,7 +11,7 @@ use crate::{
     font::render_font_to_sufface,
     monitor::{MonitorSelector, WindowPosition, get_scale_factor},
     startup::{get_startup_status, set_startup},
-    theme::{get_indicator_area_theme, get_system_theme},
+    theme::{Theme, ThemeDetectionSource, get_indicator_area_theme, get_system_theme},
     tray::create_tray,
     uiaccess::prepare_uiaccess_token,
 };
@@ -75,27 +75,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Theme {
-    Light,
-    Dark,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ThemeDetectionSource {
-    System,
-    IndicatorArea,
-}
-
-impl ThemeDetectionSource {
-    fn get_theme(&self, scale: f64) -> Theme {
-        match self {
-            ThemeDetectionSource::System => get_system_theme(),
-            ThemeDetectionSource::IndicatorArea => get_indicator_area_theme(scale),
-        }
-    }
-}
-
 struct App {
     scale_factor: f64,
     window: Option<Rc<Window>>,
@@ -104,10 +83,9 @@ struct App {
     event_loop_proxy: Option<EventLoopProxy<UserEvent>>,
     show_indicator: Arc<AtomicBool>,
     indicator_theme: Arc<Mutex<Option<(ThemeDetectionSource, Theme)>>>,
-    // 后续可自定义深浅色指示器图标
-    custom_indicator: Option<HashMap<Vec<u8>, (u64, u64)>>, // (icon_data, (width, height))
+    custom_indicator: Option<HashMap<Vec<u8>, (u64, u64)>>, // (type, (icon_data, width, height))
     tray_icon: Option<TrayIcon>,
-    tray_check_menus: Option<HashMap<String, CheckMenuItem>>,
+    tray_check_menus: Option<Vec<CheckMenuItem>>,
 }
 
 impl Default for App {
@@ -290,6 +268,7 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::TrayIconEvent(_event) => {}
             UserEvent::MenuEvent(event) => {
                 let menu_event_id = event.id().as_ref();
+                let window = self.window.as_ref().unwrap();
                 match menu_event_id {
                     "quit" => event_loop.exit(),
                     "startup" => {
@@ -299,37 +278,77 @@ impl ApplicationHandler<UserEvent> for App {
                     "follow_indicator_area_theme" | "follow_system_theme" => {
                         let mut indicator_theme = self.indicator_theme.lock().unwrap();
 
-                        let tray_check_menus = self.tray_check_menus.as_mut().unwrap();
-                        let menu_follow_indicator_area_theme =
-                            tray_check_menus.get("follow_indicator_area_theme").unwrap();
-                        let menu_follow_system_theme =
-                            tray_check_menus.get("follow_system_theme").unwrap();
+                        self.tray_check_menus
+                            .as_mut()
+                            .expect("Tray check menus not initialized")
+                            .iter()
+                            .filter(|item| item.id().as_ref().ends_with("_theme"))
+                            .for_each(|item| {
+                                let id = item.id().as_ref();
+                                if id == menu_event_id && item.is_checked() {
+                                    if id == "follow_indicator_area_theme" {
+                                        *indicator_theme = Some((
+                                            ThemeDetectionSource::IndicatorArea,
+                                            get_indicator_area_theme(self.scale_factor),
+                                        ))
+                                    } else if id == "follow_system_theme" {
+                                        *indicator_theme =
+                                            Some((ThemeDetectionSource::System, get_system_theme()))
+                                    }
+                                } else {
+                                    item.set_checked(false)
+                                }
+                            });
+                    }
+                    "select_primary_monitor" | "select_mouse_monitor" => {
+                        self.tray_check_menus
+                            .as_mut()
+                            .expect("Tray check menus not initialized")
+                            .iter()
+                            .filter(|item| item.id().as_ref().ends_with("_monitor"))
+                            .for_each(|item| {
+                                let id = item.id().as_ref();
+                                if id == menu_event_id && item.is_checked() {
+                                    if id == "select_primary_monitor" {
+                                        self.position.set_primary_monitor();
+                                    } else if id == "select_mouse_monitor" {
+                                        self.position.set_mouse_monitor();
+                                    }
+                                } else {
+                                    item.set_checked(false)
+                                }
+                            });
 
-                        if menu_event_id == "follow_indicator_area_theme" {
-                            if menu_follow_indicator_area_theme.is_checked() {
-                                let menu_follow_system_theme =
-                                    tray_check_menus.get("follow_system_theme").unwrap();
-                                menu_follow_system_theme.set_checked(false);
+                        let new_position = self
+                            .position
+                            .get_position()
+                            .expect("Failed to get primary monitor position");
 
-                                *indicator_theme = Some((
-                                    ThemeDetectionSource::IndicatorArea,
-                                    get_indicator_area_theme(self.scale_factor),
-                                ))
-                            } else {
-                                *indicator_theme = None;
-                            }
-                        } else if menu_event_id == "follow_system_theme" {
-                            if menu_follow_system_theme.is_checked() {
-                                let menu_follow_indicator_area_theme =
-                                    tray_check_menus.get("follow_indicator_area_theme").unwrap();
-                                menu_follow_indicator_area_theme.set_checked(false);
+                        window.set_outer_position(new_position);
+                    }
+                    _ if menu_event_id.starts_with("position_") => {
+                        let window_position = WindowPosition::from_str(menu_event_id)
+                            .expect("Failed to parse window position");
 
-                                *indicator_theme =
-                                    Some((ThemeDetectionSource::System, get_system_theme()))
-                            } else {
-                                *indicator_theme = None;
-                            }
-                        }
+                        self.position.set_window_position(window_position);
+
+                        let new_position = self
+                            .position
+                            .get_position()
+                            .expect("Failed to get primary monitor position");
+
+                        self.tray_check_menus
+                            .as_mut()
+                            .expect("Tray check menus not initialized")
+                            .iter()
+                            .filter(|item| item.id().as_ref().starts_with("position_"))
+                            .for_each(|item| {
+                                if item.id() != menu_event_id {
+                                    item.set_checked(false)
+                                }
+                            });
+
+                        window.set_outer_position(new_position);
                     }
                     _ => (),
                 }

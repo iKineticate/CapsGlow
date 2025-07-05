@@ -29,6 +29,25 @@ impl MonitorSelector {
             MonitorSelector::MouseMonitor(_, width, height) => (*width, *height),
         }
     }
+
+    pub fn set_window_position(&mut self, position: WindowPosition) {
+        match self {
+            MonitorSelector::PrimaryMonitor(pos, ..) => *pos = position,
+            MonitorSelector::MouseMonitor(pos, ..) => *pos = position,
+        }
+    }
+
+    pub fn set_primary_monitor(&mut self) {
+        let (width, height) = self.get_window_size();
+        let position = self.get_window_position();
+        *self = MonitorSelector::PrimaryMonitor(position, width, height);
+    }
+
+    pub fn set_mouse_monitor(&mut self) {
+        let (width, height) = self.get_window_size();
+        let position = self.get_window_position();
+        *self = MonitorSelector::MouseMonitor(position, width, height);
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -45,12 +64,40 @@ pub enum WindowPosition {
     Custom(PhysicalPosition<f64>),
 }
 
+impl WindowPosition {
+    pub fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "position_center" => Ok(WindowPosition::Center),
+            "position_left" => Ok(WindowPosition::Left),
+            "position_right" => Ok(WindowPosition::Right),
+            "position_top" => Ok(WindowPosition::Top),
+            "position_bottom" => Ok(WindowPosition::Bottom),
+            "position_top_left" => Ok(WindowPosition::TopLeft),
+            "position_top_right" => Ok(WindowPosition::TopRight),
+            "position_bottom_left" => Ok(WindowPosition::BottomLeft),
+            "position_bottom_right" => Ok(WindowPosition::BottomRight),
+            _ if s.starts_with("Custom(") && s.ends_with(")") => {
+                let coords = &s[7..s.len() - 1];
+                let parts: Vec<&str> = coords.split(',').collect();
+                if parts.len() == 2 {
+                    let x = parts[0].trim().parse::<f64>()?;
+                    let y = parts[1].trim().parse::<f64>()?;
+                    Ok(WindowPosition::Custom(PhysicalPosition::new(x, y)))
+                } else {
+                    Err(anyhow!("Invalid custom position format"))
+                }
+            }
+            _ => Err(anyhow!("Unknown window position: {s}")),
+        }
+    }
+}
+
 impl MonitorSelector {
     fn get_target_monitor_phy_rect(&self) -> Result<RECT> {
         unsafe {
             let target_cursor = match self {
-                MonitorSelector::PrimaryMonitor(_, ..) => Ok(POINT { x: 0, y: 0 }),
-                MonitorSelector::MouseMonitor(_, ..) => {
+                MonitorSelector::PrimaryMonitor(..) => Ok(POINT { x: 0, y: 0 }),
+                MonitorSelector::MouseMonitor(..) => {
                     let mut point = std::mem::zeroed();
                     GetCursorPos(&mut point)
                         .map(|_| point)
@@ -92,7 +139,7 @@ impl MonitorSelector {
                 (m_top + m_bottom - w_height),
             ),
             WindowPosition::TopLeft => (m_left, m_top),
-            WindowPosition::TopRight => ((m_right - w_width), m_right),
+            WindowPosition::TopRight => ((m_right - w_width), m_top),
             WindowPosition::BottomLeft => (m_left, (m_top + m_bottom - w_height)),
             WindowPosition::BottomRight => ((m_right - w_width), (m_top + m_bottom - w_height)),
             WindowPosition::Custom(pos) => (pos.x, pos.y),

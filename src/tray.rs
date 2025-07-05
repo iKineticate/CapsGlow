@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::ICON_DATA;
 use crate::language::{Language, Localization};
 use crate::startup::get_startup_status;
@@ -11,7 +9,7 @@ use tray_icon::{
     menu::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
 };
 
-fn create_menu() -> Result<(Menu, HashMap<String, CheckMenuItem>)> {
+fn create_menu() -> Result<(Menu, Vec<CheckMenuItem>)> {
     let should_startup =
         get_startup_status().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
 
@@ -73,22 +71,14 @@ fn create_menu() -> Result<(Menu, HashMap<String, CheckMenuItem>)> {
         ("position_top_left", loc.position_top_left),
         ("position_top_right", loc.position_top_right),
         ("position_bottom_left", loc.position_bottom_left),
-        ("position_bottom_right", loc.position_bottom_right)
+        ("position_bottom_right", loc.position_bottom_right),
     ];
 
     // Create owned CheckMenuItems first
     let position_check_items: Vec<CheckMenuItem> = position
         .iter()
         .enumerate()
-        .map(|(i, (id, name))| {
-            CheckMenuItem::with_id(
-                id,
-                name,
-                true,
-                i == 0,
-                None,
-            )
-        })
+        .map(|(i, (id, name))| CheckMenuItem::with_id(id, name, true, i == 0, None))
         .collect();
 
     // Then collect references to them
@@ -97,11 +87,7 @@ fn create_menu() -> Result<(Menu, HashMap<String, CheckMenuItem>)> {
         .map(|item| item as &dyn IsMenuItem)
         .collect();
 
-    let menu_position = Submenu::with_items(
-        loc.position,
-        true,
-        &position_check_refs,
-    )?;
+    let menu_position = Submenu::with_items(loc.position, true, &position_check_refs)?;
 
     // 屏幕位置选择
     let menu_select_primary_monitor = CheckMenuItem::with_id(
@@ -157,17 +143,19 @@ fn create_menu() -> Result<(Menu, HashMap<String, CheckMenuItem>)> {
         .append(&menu_quit)
         .context("Failed to apped 'Quit' to Tray Menu")?;
 
-    let mut tray_check_menus = HashMap::new();
-    tray_check_menus.insert(
-        "follow_indicator_area_theme".into(),
+    let mut tray_check_menus = vec![
         menu_follow_indicator_area_theme,
-    );
-    tray_check_menus.insert("follow_system_theme".into(), menu_follow_system_theme);
+        menu_follow_system_theme,
+        menu_select_primary_monitor,
+        menu_select_mouse_monitor,
+    ];
+
+    tray_check_menus.extend(position_check_items);
 
     Ok((tray_menu, tray_check_menus))
 }
 
-pub fn create_tray() -> Result<(TrayIcon, HashMap<String, CheckMenuItem>)> {
+pub fn create_tray() -> Result<(TrayIcon, Vec<CheckMenuItem>)> {
     let (tray_menu, tray_check_menus) =
         create_menu().map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
 

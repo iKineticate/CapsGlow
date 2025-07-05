@@ -1,4 +1,4 @@
-use crate::{TEXT_PADDING, Theme, WINDOW_LOGICAL_SIZE};
+use crate::{TEXT_PADDING, WINDOW_LOGICAL_SIZE};
 
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC,
@@ -11,6 +11,27 @@ use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
 const PERSONALIZE_REGISTRY_KEY: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
 const APPS_USE_LIGHT_THEME_REGISTRY_KEY: &str = "AppsUseLightTheme";
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Theme {
+    Light,
+    Dark,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ThemeDetectionSource {
+    System,
+    IndicatorArea,
+}
+
+impl ThemeDetectionSource {
+    pub fn get_theme(&self, scale: f64) -> Theme {
+        match self {
+            ThemeDetectionSource::System => get_system_theme(),
+            ThemeDetectionSource::IndicatorArea => get_indicator_area_theme(scale),
+        }
+    }
+}
 
 pub fn get_system_theme() -> Theme {
     let personalize_reg_key = RegKey::predef(HKEY_CURRENT_USER)
