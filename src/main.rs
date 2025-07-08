@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod font;
+mod icon;
 mod language;
 mod monitor;
 mod startup;
@@ -11,16 +12,10 @@ mod tray;
 mod uiaccess;
 
 use crate::{
-    font::render_font_to_sufface,
-    monitor::{WindowPlacement, WindowPosition, get_scale_factor},
-    startup::{get_startup_status, set_startup},
-    theme::{Theme, ThemeDetectionSource, get_indicator_area_theme, get_system_theme},
-    tray::create_tray,
-    uiaccess::prepare_uiaccess_token,
+    font::render_font_to_sufface, icon::{render_icon_to_buffer, IndicatorIcons}, monitor::{get_scale_factor, WindowPlacement, WindowPosition}, startup::{get_startup_status, set_startup}, theme::{get_indicator_area_theme, get_system_theme, Theme, ThemeDetectionSource}, tray::create_tray, uiaccess::prepare_uiaccess_token
 };
 
 use std::{
-    collections::HashMap,
     num::NonZeroU32,
     rc::Rc,
     sync::{
@@ -39,7 +34,7 @@ use tray_icon::{
 use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
 use winit::{
     application::ApplicationHandler,
-    dpi::LogicalSize,
+    dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     platform::windows::{WindowAttributesExtWindows, WindowExtWindows},
@@ -79,14 +74,14 @@ fn main() -> Result<()> {
 }
 
 struct App {
-    custom_indicator: Option<HashMap<Vec<u8>, (u64, u64)>>, // (type, (icon_data, width, height))
     event_loop_proxy: Option<EventLoopProxy<UserEvent>>,
-    indicator_theme: Arc<Mutex<Option<(ThemeDetectionSource, Theme)>>>,
+    indicator_icon: Option<IndicatorIcons>,
+    indicator_theme: Arc<Mutex<(ThemeDetectionSource, Theme)>>,
     window_placement: WindowPlacement,
     scale_factor: f64,
     show_indicator: Arc<AtomicBool>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    tray_icon: Option<TrayIcon>,
+    _tray_icon: Option<TrayIcon>,
     tray_check_menus: Option<Vec<CheckMenuItem>>,
     window: Option<Rc<Window>>,
 }
@@ -96,19 +91,21 @@ impl Default for App {
         let scale_factor = get_scale_factor();
         let indicator_theme = ThemeDetectionSource::IndicatorArea;
         let (tray_icon, tray_check_menus) = create_tray().expect("Failed to create tray icon");
+        let indicator_icon = IndicatorIcons::find_icon_from_exe_dir();
+
 
         Self {
-            custom_indicator: None,
             event_loop_proxy: None,
-            indicator_theme: Arc::new(Mutex::new(Some((
+            indicator_icon,
+            indicator_theme: Arc::new(Mutex::new((
                 indicator_theme,
                 indicator_theme.get_theme(scale_factor),
-            )))),
+            ))),
             window_placement: WindowPlacement::new(WINDOW_LOGICAL_SIZE * scale_factor),
             scale_factor,
             show_indicator: Arc::new(AtomicBool::new(false)),
             surface: None,
-            tray_icon: Some(tray_icon),
+            _tray_icon: Some(tray_icon),
             tray_check_menus: Some(tray_check_menus),
             window: None,
         }
@@ -131,6 +128,11 @@ impl App {
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
         let window_phy_position = self.window_placement.get_phy_position()?;
 
+        let window_size = self.indicator_icon.as_ref().map_or(
+            PhysicalSize::new(WINDOW_LOGICAL_SIZE * self.scale_factor, WINDOW_LOGICAL_SIZE * self.scale_factor),
+            |i| PhysicalSize::new(i.size.0 as f64, i.size.1 as f64),
+        );
+
         if self.window.is_none() {
             let window = event_loop.create_window(
                 Window::default_attributes()
@@ -139,9 +141,9 @@ impl App {
                     .with_undecorated_shadow(cfg!(debug_assertions)) // 隐藏窗口阴影
                     .with_content_protected(!cfg!(debug_assertions)) // 防止窗口被其他应用捕获
                     .with_window_level(WindowLevel::AlwaysOnTop) // 置顶
-                    .with_inner_size(LogicalSize::new(WINDOW_LOGICAL_SIZE, WINDOW_LOGICAL_SIZE))
-                    .with_min_inner_size(LogicalSize::new(WINDOW_LOGICAL_SIZE, WINDOW_LOGICAL_SIZE))
-                    .with_max_inner_size(LogicalSize::new(WINDOW_LOGICAL_SIZE, WINDOW_LOGICAL_SIZE))
+                    .with_inner_size(window_size)
+                    .with_min_inner_size(window_size)
+                    .with_max_inner_size(window_size)
                     .with_window_icon(Some(load_icon(ICON_DATA)?))
                     .with_position(window_phy_position)
                     .with_decorations(false) // 隐藏标题栏
@@ -198,7 +200,7 @@ impl App {
                 if current_show_indicator.ne(&last_show_indicator.load(Ordering::Relaxed)) {
                     if current_show_indicator {
                         let mut indicator_theme = indicator_theme.lock().unwrap();
-                        *indicator_theme = indicator_theme.map(|(f, _)| (f, f.get_theme(scale)));
+                        *indicator_theme = (indicator_theme.0, indicator_theme.0.get_theme(scale));
                     }
                     last_show_indicator.store(current_show_indicator, Ordering::Relaxed);
                     event_loop_proxy
@@ -229,7 +231,7 @@ impl ApplicationHandler<UserEvent> for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                let (width, height): (u32, u32) = window.inner_size().into();
+                let (window_width, window_height): (u32, u32) = window.inner_size().into();
 
                 let surface = self.surface.as_mut().unwrap();
                 let mut buffer = surface.buffer_mut().unwrap();
@@ -241,15 +243,29 @@ impl ApplicationHandler<UserEvent> for App {
                     window.set_skip_taskbar(true);
                     window.set_minimized(false);
 
-                    render_font_to_sufface(
-                        &mut buffer,
-                        width,
-                        height,
-                        TEXT_PADDING,
-                        self.scale_factor,
-                        *self.indicator_theme.lock().unwrap(),
-                    )
-                    .expect("Failed to render font to surface");
+                    if let Some(indicator_icon) = &self.indicator_icon {
+                        let icon_theme = self.indicator_theme.lock().unwrap();
+                        let (icon_buffer, icon_size) = indicator_icon
+                            .get_icon_date_and_size(&icon_theme.1);
+
+                        render_icon_to_buffer(
+                            &mut buffer,
+                            &icon_buffer,
+                            icon_size,
+                            window_width,
+                            window_height,
+                        )
+                        .expect("Failed to render icon to surface");
+                    } else {
+                        render_font_to_sufface(
+                            &mut buffer,
+                            *self.indicator_theme.lock().unwrap(),
+                            window_width,
+                            window_height,
+                        )
+                        .expect("Failed to render font to surface");
+                    }
+                
                     buffer.present().expect("Failed to present the buffer");
                 }
             }
@@ -286,13 +302,12 @@ impl ApplicationHandler<UserEvent> for App {
                                 let id = item.id().as_ref();
                                 if id == menu_event_id && item.is_checked() {
                                     if id == "follow_indicator_area_theme" {
-                                        *indicator_theme = Some((
+                                        *indicator_theme = (
                                             ThemeDetectionSource::IndicatorArea,
                                             get_indicator_area_theme(self.scale_factor),
-                                        ))
+                                        )
                                     } else if id == "follow_system_theme" {
-                                        *indicator_theme =
-                                            Some((ThemeDetectionSource::System, get_system_theme()))
+                                        *indicator_theme = (ThemeDetectionSource::System, get_system_theme())
                                     }
                                 } else {
                                     item.set_checked(false)
