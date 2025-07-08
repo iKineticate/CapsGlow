@@ -1,4 +1,7 @@
+#![allow(non_snake_case)]
+#![cfg(target_os = "windows")]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod font;
 mod language;
 mod monitor;
@@ -9,9 +12,9 @@ mod uiaccess;
 
 use crate::{
     font::render_font_to_sufface,
-    monitor::{get_scale_factor, WindowPlacement, WindowPosition},
+    monitor::{WindowPlacement, WindowPosition, get_scale_factor},
     startup::{get_startup_status, set_startup},
-    theme::{get_indicator_area_theme, get_system_theme, Theme, ThemeDetectionSource},
+    theme::{Theme, ThemeDetectionSource, get_indicator_area_theme, get_system_theme},
     tray::create_tray,
     uiaccess::prepare_uiaccess_token,
 };
@@ -77,7 +80,7 @@ fn main() -> Result<()> {
 
 struct App {
     custom_indicator: Option<HashMap<Vec<u8>, (u64, u64)>>, // (type, (icon_data, width, height))
-    event_loop_proxy: Option<EventLoopProxy<UserEvent>>,    
+    event_loop_proxy: Option<EventLoopProxy<UserEvent>>,
     indicator_theme: Arc<Mutex<Option<(ThemeDetectionSource, Theme)>>>,
     window_placement: WindowPlacement,
     scale_factor: f64,
