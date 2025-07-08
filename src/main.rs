@@ -9,9 +9,9 @@ mod uiaccess;
 
 use crate::{
     font::render_font_to_sufface,
-    monitor::{MonitorSelector, WindowPosition, get_scale_factor},
+    monitor::{get_scale_factor, WindowPlacement, WindowPosition},
     startup::{get_startup_status, set_startup},
-    theme::{Theme, ThemeDetectionSource, get_indicator_area_theme, get_system_theme},
+    theme::{get_indicator_area_theme, get_system_theme, Theme, ThemeDetectionSource},
     tray::create_tray,
     uiaccess::prepare_uiaccess_token,
 };
@@ -76,16 +76,16 @@ fn main() -> Result<()> {
 }
 
 struct App {
-    scale_factor: f64,
-    window: Option<Rc<Window>>,
-    position: MonitorSelector,
-    surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    event_loop_proxy: Option<EventLoopProxy<UserEvent>>,
-    show_indicator: Arc<AtomicBool>,
-    indicator_theme: Arc<Mutex<Option<(ThemeDetectionSource, Theme)>>>,
     custom_indicator: Option<HashMap<Vec<u8>, (u64, u64)>>, // (type, (icon_data, width, height))
+    event_loop_proxy: Option<EventLoopProxy<UserEvent>>,    
+    indicator_theme: Arc<Mutex<Option<(ThemeDetectionSource, Theme)>>>,
+    window_placement: WindowPlacement,
+    scale_factor: f64,
+    show_indicator: Arc<AtomicBool>,
+    surface: Option<Surface<Rc<Window>, Rc<Window>>>,
     tray_icon: Option<TrayIcon>,
     tray_check_menus: Option<Vec<CheckMenuItem>>,
+    window: Option<Rc<Window>>,
 }
 
 impl Default for App {
@@ -95,32 +95,28 @@ impl Default for App {
         let (tray_icon, tray_check_menus) = create_tray().expect("Failed to create tray icon");
 
         Self {
-            scale_factor,
-            window: None,
-            position: MonitorSelector::PrimaryMonitor(
-                WindowPosition::Center,
-                WINDOW_LOGICAL_SIZE * scale_factor,
-                WINDOW_LOGICAL_SIZE * scale_factor,
-            ),
-            surface: None,
+            custom_indicator: None,
             event_loop_proxy: None,
-            show_indicator: Arc::new(AtomicBool::new(false)),
             indicator_theme: Arc::new(Mutex::new(Some((
                 indicator_theme,
                 indicator_theme.get_theme(scale_factor),
             )))),
-            custom_indicator: None,
+            window_placement: WindowPlacement::new(WINDOW_LOGICAL_SIZE * scale_factor),
+            scale_factor,
+            show_indicator: Arc::new(AtomicBool::new(false)),
+            surface: None,
             tray_icon: Some(tray_icon),
             tray_check_menus: Some(tray_check_menus),
+            window: None,
         }
     }
 }
 
 #[derive(Debug)]
 enum UserEvent {
-    TrayIconEvent(TrayIconEvent),
     MenuEvent(MenuEvent),
     RedrawRequested,
+    TrayIconEvent(TrayIconEvent),
 }
 
 impl App {
@@ -130,7 +126,7 @@ impl App {
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
-        let window_phy_position = self.position.get_position()?;
+        let window_phy_position = self.window_placement.get_phy_position()?;
 
         if self.window.is_none() {
             let window = event_loop.create_window(
@@ -310,9 +306,9 @@ impl ApplicationHandler<UserEvent> for App {
                                 let id = item.id().as_ref();
                                 if id == menu_event_id && item.is_checked() {
                                     if id == "select_primary_monitor" {
-                                        self.position.set_primary_monitor();
+                                        self.window_placement.set_primary_monitor();
                                     } else if id == "select_mouse_monitor" {
-                                        self.position.set_mouse_monitor();
+                                        self.window_placement.set_mouse_monitor();
                                     }
                                 } else {
                                     item.set_checked(false)
@@ -320,8 +316,8 @@ impl ApplicationHandler<UserEvent> for App {
                             });
 
                         let new_position = self
-                            .position
-                            .get_position()
+                            .window_placement
+                            .get_phy_position()
                             .expect("Failed to get primary monitor position");
 
                         window.set_outer_position(new_position);
@@ -330,11 +326,11 @@ impl ApplicationHandler<UserEvent> for App {
                         let window_position = WindowPosition::from_str(menu_event_id)
                             .expect("Failed to parse window position");
 
-                        self.position.set_window_position(window_position);
+                        self.window_placement.set_window_position(window_position);
 
                         let new_position = self
-                            .position
-                            .get_position()
+                            .window_placement
+                            .get_phy_position()
                             .expect("Failed to get primary monitor position");
 
                         self.tray_check_menus

@@ -11,42 +11,68 @@ use winit::dpi::PhysicalPosition;
 
 #[derive(Debug, Clone, Copy)]
 pub enum MonitorSelector {
-    PrimaryMonitor(WindowPosition, f64, f64),
-    MouseMonitor(WindowPosition, f64, f64),
+    MouseMonitor,
+    PrimaryMonitor,
 }
 
-impl MonitorSelector {
-    fn get_window_position(&self) -> WindowPosition {
-        match self {
-            MonitorSelector::PrimaryMonitor(position, ..) => *position,
-            MonitorSelector::MouseMonitor(position, ..) => *position,
+#[derive(Debug, Clone, Copy)]
+pub struct WindowPlacement {
+    monitor: MonitorSelector,
+    position: WindowPosition,
+    windows_sizes: (f64, f64),
+}
+
+impl WindowPlacement {
+    pub fn new(size: f64) -> Self {
+        WindowPlacement {
+            monitor: MonitorSelector::MouseMonitor,
+            position: WindowPosition::Center,
+            windows_sizes: (size, size),
         }
     }
 
-    fn get_window_size(&self) -> (f64, f64) {
-        match self {
-            MonitorSelector::PrimaryMonitor(_, width, height) => (*width, *height),
-            MonitorSelector::MouseMonitor(_, width, height) => (*width, *height),
-        }
-    }
+    pub fn get_phy_position(&self) -> Result<PhysicalPosition<f64>> {
+        let rect = self.monitor.get_target_monitor_phy_rect()?;
+        let (m_left, m_right, m_top, m_bottom) = (
+            rect.left as f64,
+            rect.right as f64,
+            rect.top as f64,
+            rect.bottom as f64,
+        );
+        let (w_width, w_height) = self.windows_sizes;
+        let position = self.position;
 
-    pub fn set_window_position(&mut self, position: WindowPosition) {
-        match self {
-            MonitorSelector::PrimaryMonitor(pos, ..) => *pos = position,
-            MonitorSelector::MouseMonitor(pos, ..) => *pos = position,
-        }
+        let (x, y) = match position {
+            WindowPosition::Center => (
+                ((m_left + m_right - w_width) / 2.0),
+                (m_top + m_bottom - w_height) / 2.0,
+            ),
+            WindowPosition::Left => (m_left, (m_top + m_bottom - w_height) / 2.0),
+            WindowPosition::Right => ((m_right - w_width), (m_top + m_bottom - w_height) / 2.0),
+            WindowPosition::Top => ((m_left + m_right - w_width) / 2.0, m_top),
+            WindowPosition::Bottom => (
+                (m_left + m_right - w_width) / 2.0,
+                (m_top + m_bottom - w_height),
+            ),
+            WindowPosition::TopLeft => (m_left, m_top),
+            WindowPosition::TopRight => ((m_right - w_width), m_top),
+            WindowPosition::BottomLeft => (m_left, (m_top + m_bottom - w_height)),
+            WindowPosition::BottomRight => ((m_right - w_width), (m_top + m_bottom - w_height)),
+            WindowPosition::Custom(pos) => (pos.x, pos.y),
+        };
+        Ok(PhysicalPosition::new(x, y))
     }
 
     pub fn set_primary_monitor(&mut self) {
-        let (width, height) = self.get_window_size();
-        let position = self.get_window_position();
-        *self = MonitorSelector::PrimaryMonitor(position, width, height);
+        self.monitor = MonitorSelector::PrimaryMonitor;
     }
 
     pub fn set_mouse_monitor(&mut self) {
-        let (width, height) = self.get_window_size();
-        let position = self.get_window_position();
-        *self = MonitorSelector::MouseMonitor(position, width, height);
+        self.monitor = MonitorSelector::MouseMonitor;
+    }
+
+    pub fn set_window_position(&mut self, position: WindowPosition) {
+        self.position = position;
     }
 }
 
@@ -96,8 +122,8 @@ impl MonitorSelector {
     fn get_target_monitor_phy_rect(&self) -> Result<RECT> {
         unsafe {
             let target_cursor = match self {
-                MonitorSelector::PrimaryMonitor(..) => Ok(POINT { x: 0, y: 0 }),
-                MonitorSelector::MouseMonitor(..) => {
+                MonitorSelector::PrimaryMonitor => Ok(POINT { x: 0, y: 0 }),
+                MonitorSelector::MouseMonitor => {
                     let mut point = std::mem::zeroed();
                     GetCursorPos(&mut point)
                         .map(|_| point)
@@ -113,38 +139,6 @@ impl MonitorSelector {
 
             Ok(info.rcMonitor)
         }
-    }
-
-    pub fn get_position(&self) -> Result<PhysicalPosition<f64>> {
-        let rect = self.get_target_monitor_phy_rect()?;
-        let (m_left, m_right, m_top, m_bottom) = (
-            rect.left as f64,
-            rect.right as f64,
-            rect.top as f64,
-            rect.bottom as f64,
-        );
-        let (w_width, w_height) = self.get_window_size();
-        let position = self.get_window_position();
-
-        let (x, y) = match position {
-            WindowPosition::Center => (
-                ((m_left + m_right - w_width) / 2.0),
-                (m_top + m_bottom - w_height) / 2.0,
-            ),
-            WindowPosition::Left => (m_left, (m_top + m_bottom - w_height) / 2.0),
-            WindowPosition::Right => ((m_right - w_width), (m_top + m_bottom - w_height) / 2.0),
-            WindowPosition::Top => ((m_left + m_right - w_width) / 2.0, m_top),
-            WindowPosition::Bottom => (
-                (m_left + m_right - w_width) / 2.0,
-                (m_top + m_bottom - w_height),
-            ),
-            WindowPosition::TopLeft => (m_left, m_top),
-            WindowPosition::TopRight => ((m_right - w_width), m_top),
-            WindowPosition::BottomLeft => (m_left, (m_top + m_bottom - w_height)),
-            WindowPosition::BottomRight => ((m_right - w_width), (m_top + m_bottom - w_height)),
-            WindowPosition::Custom(pos) => (pos.x, pos.y),
-        };
-        Ok(PhysicalPosition::new(x, y))
     }
 }
 
