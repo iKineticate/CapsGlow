@@ -4,11 +4,14 @@ A lightweight Caps Lock indicator for Windows, supporting theme switching, monit
 
 一款适用于 Windows 的轻量级 Caps Lock 状态指示器，支持主题切换、显示器选择（主显示器或鼠标所在显示器）及灵活的位置设置。 🦆
 
-## 🎨 Light Theme / 亮色主题
+## ☀️ Light Theme / 亮色主题
 ![image](screenshots/light.png)
 
 ## 🌙 Dark Theme / 暗色主题
 ![image](screenshots/dark.png)
+
+## 🎨 Customize / 自定义图标
+![image](screenshots/customize.png)
 
 ## Contributing / 贡献
 
