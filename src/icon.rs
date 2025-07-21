@@ -1,15 +1,15 @@
 use crate::theme::Theme;
 
 use anyhow::Result;
-use image::{ImageReader, ImageBuffer, Rgba};
+use image::{ImageBuffer, ImageReader, Rgba};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ThemeIcon {
     Single(ImageBuffer<Rgba<u8>, Vec<u8>>),
     Theme {
         light: ImageBuffer<Rgba<u8>, Vec<u8>>,
-        dark: ImageBuffer<Rgba<u8>, Vec<u8>>
-    }, 
+        dark: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -37,44 +37,46 @@ impl IndicatorIcons {
             // 尚未决定是否需要确保图片大小控制在某范围
             let (width, height) = icon_date.dimensions();
 
-            return Some(IndicatorIcons{
+            return Some(IndicatorIcons {
                 icon: ThemeIcon::Single(icon_date),
                 size: (width, height),
-            })
-        } else {
-            if icon_dark_path.is_file() && icon_light_path.is_file() {
-                let icon_dark_date = ImageReader::open(icon_dark_path)
-                    .ok()?
-                    .decode()
-                    .ok()?
-                    .into_rgba8();
-                let icon_light_date = ImageReader::open(icon_light_path)
-                    .ok()?
-                    .decode()
-                    .ok()?
-                    .into_rgba8();
+            });
+        } else if icon_dark_path.is_file() && icon_light_path.is_file() {
+            let icon_dark_date = ImageReader::open(icon_dark_path)
+                .ok()?
+                .decode()
+                .ok()?
+                .into_rgba8();
+            let icon_light_date = ImageReader::open(icon_light_path)
+                .ok()?
+                .decode()
+                .ok()?
+                .into_rgba8();
 
-                // 确保图片大小一致
-                let (width, height) = icon_dark_date.dimensions();
-                if icon_light_date.dimensions() != (width, height) {
-                    return None;
-                }
-
-                return Some(IndicatorIcons{
-                    icon: ThemeIcon::Theme {
-                        light: icon_light_date,
-                        dark: icon_dark_date,
-                    },
-                    size: (width, height),
-                });
+            // 确保图片大小一致
+            let (width, height) = icon_dark_date.dimensions();
+            if icon_light_date.dimensions() != (width, height) {
+                return None;
             }
+
+            return Some(IndicatorIcons {
+                icon: ThemeIcon::Theme {
+                    light: icon_light_date,
+                    dark: icon_dark_date,
+                },
+                size: (width, height),
+            });
         }
+        
 
         None
     }
 
-    pub fn get_icon_date_and_size(&self, theme: &Theme) -> (ImageBuffer<Rgba<u8>, Vec<u8>>, (u32, u32)) {
-        match &self.icon{
+    pub fn get_icon_date_and_size(
+        &self,
+        theme: &Theme,
+    ) -> (ImageBuffer<Rgba<u8>, Vec<u8>>, (u32, u32)) {
+        match &self.icon {
             ThemeIcon::Single(data) => (data.clone(), self.size),
             ThemeIcon::Theme { light, dark } => match theme {
                 Theme::Light => (light.clone(), self.size),

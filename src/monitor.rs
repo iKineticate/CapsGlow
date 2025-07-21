@@ -19,15 +19,15 @@ pub enum MonitorSelector {
 pub struct WindowPlacement {
     monitor: MonitorSelector,
     position: WindowPosition,
-    windows_sizes: (f64, f64),
+    windows_size: (f64, f64),
 }
 
 impl WindowPlacement {
-    pub fn new(size: f64) -> Self {
+    pub fn new(width: f64, height: f64) -> Self {
         WindowPlacement {
             monitor: MonitorSelector::MouseMonitor,
             position: WindowPosition::Center,
-            windows_sizes: (size, size),
+            windows_size: (width, height),
         }
     }
 
@@ -39,7 +39,7 @@ impl WindowPlacement {
             rect.top as f64,
             rect.bottom as f64,
         );
-        let (w_width, w_height) = self.windows_sizes;
+        let (w_width, w_height) = self.windows_size;
         let position = self.position;
 
         let (x, y) = match position {
@@ -61,6 +61,10 @@ impl WindowPlacement {
             WindowPosition::Custom(pos) => (pos.x, pos.y),
         };
         Ok(PhysicalPosition::new(x, y))
+    }
+
+    pub fn set_windows_size(&mut self, size: (u32, u32)) {
+        self.windows_size = (size.0 as f64, size.1 as f64);
     }
 
     pub fn set_primary_monitor(&mut self) {

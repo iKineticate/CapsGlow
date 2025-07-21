@@ -77,7 +77,8 @@ fn get_font_bitmap(
             .build()
             .map_err(|e| anyhow!("Failed to build text layout - {e}"))?;
 
-        if layout.size().width > window_physical_width as f64 || layout.size().height > window_physical_height as f64
+        if layout.size().width > window_physical_width as f64
+            || layout.size().height > window_physical_height as f64
         {
             break;
         }

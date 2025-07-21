@@ -12,7 +12,13 @@ mod tray;
 mod uiaccess;
 
 use crate::{
-    font::render_font_to_sufface, icon::{render_icon_to_buffer, IndicatorIcons}, monitor::{get_scale_factor, WindowPlacement, WindowPosition}, startup::{get_startup_status, set_startup}, theme::{get_indicator_area_theme, get_system_theme, Theme, ThemeDetectionSource}, tray::create_tray, uiaccess::prepare_uiaccess_token
+    font::render_font_to_sufface,
+    icon::{IndicatorIcons, render_icon_to_buffer},
+    monitor::{WindowPlacement, WindowPosition, get_scale_factor},
+    startup::{get_startup_status, set_startup},
+    theme::{Theme, ThemeDetectionSource, get_indicator_area_theme, get_system_theme},
+    tray::create_tray,
+    uiaccess::prepare_uiaccess_token,
 };
 
 use std::{
@@ -28,7 +34,7 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 use softbuffer::Surface;
 use tray_icon::{
-    TrayIcon, TrayIconEvent,
+    TrayIcon,
     menu::{CheckMenuItem, MenuEvent},
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
@@ -49,13 +55,6 @@ fn main() -> Result<()> {
     let _ = prepare_uiaccess_token().inspect(|_| println!("Successful acquisition of Uiaccess"));
 
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
-
-    let proxy = event_loop.create_proxy();
-    TrayIconEvent::set_event_handler(Some(move |event| {
-        proxy
-            .send_event(UserEvent::TrayIconEvent(event))
-            .expect("Failed to send TrayIconEvent");
-    }));
 
     let proxy = event_loop.create_proxy();
     MenuEvent::set_event_handler(Some(move |event| {
@@ -92,7 +91,13 @@ impl Default for App {
         let indicator_theme = ThemeDetectionSource::IndicatorArea;
         let (tray_icon, tray_check_menus) = create_tray().expect("Failed to create tray icon");
         let indicator_icon = IndicatorIcons::find_icon_from_exe_dir();
-
+        let (windows_phy_width, windows_phy_height) = indicator_icon.as_ref().map_or(
+            (
+                WINDOW_LOGICAL_SIZE * scale_factor,
+                WINDOW_LOGICAL_SIZE * scale_factor,
+            ),
+            |i| (i.size.0 as f64, i.size.1 as f64),
+        );
 
         Self {
             event_loop_proxy: None,
@@ -101,7 +106,7 @@ impl Default for App {
                 indicator_theme,
                 indicator_theme.get_theme(scale_factor),
             ))),
-            window_placement: WindowPlacement::new(WINDOW_LOGICAL_SIZE * scale_factor),
+            window_placement: WindowPlacement::new(windows_phy_width, windows_phy_height),
             scale_factor,
             show_indicator: Arc::new(AtomicBool::new(false)),
             surface: None,
@@ -116,7 +121,6 @@ impl Default for App {
 enum UserEvent {
     MenuEvent(MenuEvent),
     RedrawRequested,
-    TrayIconEvent(TrayIconEvent),
 }
 
 impl App {
@@ -129,7 +133,10 @@ impl App {
         let window_phy_position = self.window_placement.get_phy_position()?;
 
         let window_size = self.indicator_icon.as_ref().map_or(
-            PhysicalSize::new(WINDOW_LOGICAL_SIZE * self.scale_factor, WINDOW_LOGICAL_SIZE * self.scale_factor),
+            PhysicalSize::new(
+                WINDOW_LOGICAL_SIZE * self.scale_factor,
+                WINDOW_LOGICAL_SIZE * self.scale_factor,
+            ),
             |i| PhysicalSize::new(i.size.0 as f64, i.size.1 as f64),
         );
 
@@ -245,8 +252,10 @@ impl ApplicationHandler<UserEvent> for App {
 
                     if let Some(indicator_icon) = &self.indicator_icon {
                         let icon_theme = self.indicator_theme.lock().unwrap();
-                        let (icon_buffer, icon_size) = indicator_icon
-                            .get_icon_date_and_size(&icon_theme.1);
+                        let (icon_buffer, icon_size) =
+                            indicator_icon.get_icon_date_and_size(&icon_theme.1);
+
+                        self.window_placement.set_windows_size(icon_size);
 
                         render_icon_to_buffer(
                             &mut buffer,
@@ -265,7 +274,7 @@ impl ApplicationHandler<UserEvent> for App {
                         )
                         .expect("Failed to render font to surface");
                     }
-                
+
                     buffer.present().expect("Failed to present the buffer");
                 }
             }
@@ -280,7 +289,6 @@ impl ApplicationHandler<UserEvent> for App {
                     window.request_redraw();
                 }
             }
-            UserEvent::TrayIconEvent(_event) => {}
             UserEvent::MenuEvent(event) => {
                 let menu_event_id = event.id().as_ref();
                 let window = self.window.as_ref().unwrap();
@@ -307,7 +315,8 @@ impl ApplicationHandler<UserEvent> for App {
                                             get_indicator_area_theme(self.scale_factor),
                                         )
                                     } else if id == "follow_system_theme" {
-                                        *indicator_theme = (ThemeDetectionSource::System, get_system_theme())
+                                        *indicator_theme =
+                                            (ThemeDetectionSource::System, get_system_theme())
                                     }
                                 } else {
                                     item.set_checked(false)
