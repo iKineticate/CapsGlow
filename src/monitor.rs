@@ -9,17 +9,17 @@ use windows::Win32::{
 };
 use winit::dpi::PhysicalPosition;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum MonitorSelector {
     MouseMonitor,
     PrimaryMonitor,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct WindowPlacement {
-    monitor: MonitorSelector,
-    position: WindowPosition,
-    windows_size: (f64, f64),
+    pub monitor: MonitorSelector,
+    pub position: WindowPosition,
+    pub windows_size: (f64, f64),
 }
 
 impl WindowPlacement {
@@ -40,7 +40,7 @@ impl WindowPlacement {
             rect.bottom as f64,
         );
         let (w_width, w_height) = self.windows_size;
-        let position = self.position;
+        let position = &self.position;
 
         let (x, y) = match position {
             WindowPosition::Center => (
@@ -58,13 +58,8 @@ impl WindowPlacement {
             WindowPosition::TopRight => ((m_right - w_width), m_top),
             WindowPosition::BottomLeft => (m_left, (m_top + m_bottom - w_height)),
             WindowPosition::BottomRight => ((m_right - w_width), (m_top + m_bottom - w_height)),
-            WindowPosition::Custom(pos) => (pos.x, pos.y),
         };
         Ok(PhysicalPosition::new(x, y))
-    }
-
-    pub fn set_windows_size(&mut self, size: (u32, u32)) {
-        self.windows_size = (size.0 as f64, size.1 as f64);
     }
 
     pub fn set_primary_monitor(&mut self) {
@@ -74,13 +69,9 @@ impl WindowPlacement {
     pub fn set_mouse_monitor(&mut self) {
         self.monitor = MonitorSelector::MouseMonitor;
     }
-
-    pub fn set_window_position(&mut self, position: WindowPosition) {
-        self.position = position;
-    }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum WindowPosition {
     Center,
     Left,
@@ -91,12 +82,11 @@ pub enum WindowPosition {
     TopRight,
     BottomLeft,
     BottomRight,
-    Custom(PhysicalPosition<f64>),
 }
 
 impl WindowPosition {
     pub fn from_str(s: &str) -> Result<Self> {
-        match s {
+        match s.to_lowercase().trim() {
             "position_center" => Ok(WindowPosition::Center),
             "position_left" => Ok(WindowPosition::Left),
             "position_right" => Ok(WindowPosition::Right),
@@ -106,18 +96,21 @@ impl WindowPosition {
             "position_top_right" => Ok(WindowPosition::TopRight),
             "position_bottom_left" => Ok(WindowPosition::BottomLeft),
             "position_bottom_right" => Ok(WindowPosition::BottomRight),
-            _ if s.starts_with("Custom(") && s.ends_with(")") => {
-                let coords = &s[7..s.len() - 1];
-                let parts: Vec<&str> = coords.split(',').collect();
-                if parts.len() == 2 {
-                    let x = parts[0].trim().parse::<f64>()?;
-                    let y = parts[1].trim().parse::<f64>()?;
-                    Ok(WindowPosition::Custom(PhysicalPosition::new(x, y)))
-                } else {
-                    Err(anyhow!("Invalid custom position format"))
-                }
-            }
             _ => Err(anyhow!("Unknown window position: {s}")),
+        }
+    }
+
+    pub fn get_str(&self) -> &str {
+        match self {
+            WindowPosition::Center => "position_center",
+            WindowPosition::Left => "position_left",
+            WindowPosition::Right => "position_right",
+            WindowPosition::Top => "position_top",
+            WindowPosition::Bottom => "position_bottom",
+            WindowPosition::TopLeft => "position_top_left",
+            WindowPosition::TopRight => "position_top_right",
+            WindowPosition::BottomLeft => "position_bottom_left",
+            WindowPosition::BottomRight => "position_bottom_right",
         }
     }
 }

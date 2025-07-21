@@ -16,6 +16,7 @@ tray-icon = "0.21.0"
 image = "0.25"
 winreg = "0.55"
 anyhow = "1"
+rust-ini = "0.21"
 
 [dependencies.windows]
 version = "0.61.3"

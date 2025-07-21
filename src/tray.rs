@@ -1,6 +1,8 @@
 use crate::ICON_DATA;
+use crate::config::Config;
 use crate::language::{Language, Localization};
 use crate::startup::get_startup_status;
+use crate::theme::ThemeDetectionSource;
 
 use anyhow::{Context, Result, anyhow};
 use tray_icon::menu::{IsMenuItem, Submenu};
@@ -9,7 +11,7 @@ use tray_icon::{
     menu::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
 };
 
-fn create_menu() -> Result<(Menu, Vec<CheckMenuItem>)> {
+fn create_menu(config: &Config) -> Result<(Menu, Vec<CheckMenuItem>)> {
     let should_startup =
         get_startup_status().map_err(|e| anyhow!("Failed to get startup status. - {e}"))?;
 
@@ -40,7 +42,7 @@ fn create_menu() -> Result<(Menu, Vec<CheckMenuItem>)> {
         "follow_indicator_area_theme",
         loc.follow_indicator_area_theme,
         true,
-        true,
+        config.theme_detection_source == ThemeDetectionSource::IndicatorArea,
         None,
     );
 
@@ -48,7 +50,7 @@ fn create_menu() -> Result<(Menu, Vec<CheckMenuItem>)> {
         "follow_system_theme",
         loc.follow_system_theme,
         true,
-        false,
+        config.theme_detection_source == ThemeDetectionSource::System,
         None,
     );
 
@@ -77,8 +79,15 @@ fn create_menu() -> Result<(Menu, Vec<CheckMenuItem>)> {
     // Create owned CheckMenuItems first
     let position_check_items: Vec<CheckMenuItem> = position
         .iter()
-        .enumerate()
-        .map(|(i, (id, name))| CheckMenuItem::with_id(id, name, true, i == 0, None))
+        .map(|(id, name)| {
+            CheckMenuItem::with_id(
+                id,
+                name,
+                true,
+                *id == config.window_placement.position.get_str(),
+                None,
+            )
+        })
         .collect();
 
     // Then collect references to them
@@ -155,9 +164,9 @@ fn create_menu() -> Result<(Menu, Vec<CheckMenuItem>)> {
     Ok((tray_menu, tray_check_menus))
 }
 
-pub fn create_tray() -> Result<(TrayIcon, Vec<CheckMenuItem>)> {
+pub fn create_tray(config: &Config) -> Result<(TrayIcon, Vec<CheckMenuItem>)> {
     let (tray_menu, tray_check_menus) =
-        create_menu().map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
+        create_menu(config).map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
 
     let tray_icon = TrayIconBuilder::new()
         .with_menu_on_left_click(true)

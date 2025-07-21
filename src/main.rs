@@ -2,6 +2,7 @@
 #![cfg(target_os = "windows")]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod config;
 mod font;
 mod icon;
 mod language;
@@ -12,11 +13,12 @@ mod tray;
 mod uiaccess;
 
 use crate::{
+    config::Config,
     font::render_font_to_sufface,
     icon::{IndicatorIcons, render_icon_to_buffer},
-    monitor::{WindowPlacement, WindowPosition, get_scale_factor},
+    monitor::{WindowPosition, get_scale_factor},
     startup::{get_startup_status, set_startup},
-    theme::{Theme, ThemeDetectionSource, get_indicator_area_theme, get_system_theme},
+    theme::{Theme, ThemeDetectionSource},
     tray::create_tray,
     uiaccess::prepare_uiaccess_token,
 };
@@ -73,10 +75,9 @@ fn main() -> Result<()> {
 }
 
 struct App {
+    config: Mutex<Config>,
     event_loop_proxy: Option<EventLoopProxy<UserEvent>>,
     indicator_icon: Option<IndicatorIcons>,
-    indicator_theme: Arc<Mutex<(ThemeDetectionSource, Theme)>>,
-    window_placement: WindowPlacement,
     scale_factor: f64,
     show_indicator: Arc<AtomicBool>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
@@ -87,10 +88,9 @@ struct App {
 
 impl Default for App {
     fn default() -> Self {
-        let scale_factor = get_scale_factor();
-        let indicator_theme = ThemeDetectionSource::IndicatorArea;
-        let (tray_icon, tray_check_menus) = create_tray().expect("Failed to create tray icon");
         let indicator_icon = IndicatorIcons::find_icon_from_exe_dir();
+
+        let scale_factor = get_scale_factor();
         let (windows_phy_width, windows_phy_height) = indicator_icon.as_ref().map_or(
             (
                 WINDOW_LOGICAL_SIZE * scale_factor,
@@ -99,14 +99,16 @@ impl Default for App {
             |i| (i.size.0 as f64, i.size.1 as f64),
         );
 
+        let config = Config::oepn(windows_phy_width, windows_phy_height)
+            .expect("Failed to open CapsGlow.ini");
+
+        let (tray_icon, tray_check_menus) =
+            create_tray(&config).expect("Failed to create tray icon");
+
         Self {
+            config: Mutex::new(config),
             event_loop_proxy: None,
             indicator_icon,
-            indicator_theme: Arc::new(Mutex::new((
-                indicator_theme,
-                indicator_theme.get_theme(scale_factor),
-            ))),
-            window_placement: WindowPlacement::new(windows_phy_width, windows_phy_height),
             scale_factor,
             show_indicator: Arc::new(AtomicBool::new(false)),
             surface: None,
@@ -130,7 +132,10 @@ impl App {
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
-        let window_phy_position = self.window_placement.get_phy_position()?;
+        let window_phy_position = {
+            let config = self.config.lock().unwrap();
+            config.window_placement.get_phy_position()?
+        };
 
         let window_size = self.indicator_icon.as_ref().map_or(
             PhysicalSize::new(
@@ -194,10 +199,8 @@ impl App {
     }
 
     fn listen_keys(&mut self) -> Result<()> {
-        let indicator_theme = Arc::clone(&self.indicator_theme);
         let last_show_indicator = Arc::clone(&self.show_indicator);
         let event_loop_proxy = self.event_loop_proxy.clone().unwrap();
-        let scale = self.scale_factor;
 
         std::thread::spawn(move || {
             loop {
@@ -205,10 +208,6 @@ impl App {
                 // https://learn.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
                 let current_show_indicator = unsafe { (GetKeyState(0x14) & 0x0001) != 0 };
                 if current_show_indicator.ne(&last_show_indicator.load(Ordering::Relaxed)) {
-                    if current_show_indicator {
-                        let mut indicator_theme = indicator_theme.lock().unwrap();
-                        *indicator_theme = (indicator_theme.0, indicator_theme.0.get_theme(scale));
-                    }
                     last_show_indicator.store(current_show_indicator, Ordering::Relaxed);
                     event_loop_proxy
                         .send_event(UserEvent::RedrawRequested)
@@ -250,12 +249,17 @@ impl ApplicationHandler<UserEvent> for App {
                     window.set_skip_taskbar(true);
                     window.set_minimized(false);
 
-                    if let Some(indicator_icon) = &self.indicator_icon {
-                        let icon_theme = self.indicator_theme.lock().unwrap();
-                        let (icon_buffer, icon_size) =
-                            indicator_icon.get_icon_date_and_size(&icon_theme.1);
+                    let (theme_detection_source, indicator_theme) = {
+                        let config = self.config.lock().unwrap();
+                        (
+                            config.theme_detection_source,
+                            config.theme_detection_source.get_theme(self.scale_factor),
+                        )
+                    };
 
-                        self.window_placement.set_windows_size(icon_size);
+                    if let Some(indicator_icon) = &self.indicator_icon {
+                        let (icon_buffer, icon_size) =
+                            indicator_icon.get_icon_date_and_size(&indicator_theme);
 
                         render_icon_to_buffer(
                             &mut buffer,
@@ -268,7 +272,7 @@ impl ApplicationHandler<UserEvent> for App {
                     } else {
                         render_font_to_sufface(
                             &mut buffer,
-                            *self.indicator_theme.lock().unwrap(),
+                            (theme_detection_source, indicator_theme),
                             window_width,
                             window_height,
                         )
@@ -299,7 +303,10 @@ impl ApplicationHandler<UserEvent> for App {
                         set_startup(enabled).expect("Failed to set Launch at Startup")
                     }
                     "follow_indicator_area_theme" | "follow_system_theme" => {
-                        let mut indicator_theme = self.indicator_theme.lock().unwrap();
+                        let mut config = self.config.lock().unwrap();
+                        config
+                            .write_setting("ThemeDetectionSource", menu_event_id)
+                            .expect("Failed to write config");
 
                         self.tray_check_menus
                             .as_mut()
@@ -310,13 +317,11 @@ impl ApplicationHandler<UserEvent> for App {
                                 let id = item.id().as_ref();
                                 if id == menu_event_id && item.is_checked() {
                                     if id == "follow_indicator_area_theme" {
-                                        *indicator_theme = (
-                                            ThemeDetectionSource::IndicatorArea,
-                                            get_indicator_area_theme(self.scale_factor),
-                                        )
+                                        config.theme_detection_source =
+                                            ThemeDetectionSource::IndicatorArea;
                                     } else if id == "follow_system_theme" {
-                                        *indicator_theme =
-                                            (ThemeDetectionSource::System, get_system_theme())
+                                        config.theme_detection_source =
+                                            ThemeDetectionSource::System;
                                     }
                                 } else {
                                     item.set_checked(false)
@@ -324,6 +329,11 @@ impl ApplicationHandler<UserEvent> for App {
                             });
                     }
                     "select_primary_monitor" | "select_mouse_monitor" => {
+                        let mut config = self.config.lock().unwrap();
+                        config
+                            .write_setting("MonitorSelector", menu_event_id)
+                            .expect("Failed to write config");
+
                         self.tray_check_menus
                             .as_mut()
                             .expect("Tray check menus not initialized")
@@ -333,16 +343,16 @@ impl ApplicationHandler<UserEvent> for App {
                                 let id = item.id().as_ref();
                                 if id == menu_event_id && item.is_checked() {
                                     if id == "select_primary_monitor" {
-                                        self.window_placement.set_primary_monitor();
+                                        config.window_placement.set_primary_monitor();
                                     } else if id == "select_mouse_monitor" {
-                                        self.window_placement.set_mouse_monitor();
+                                        config.window_placement.set_mouse_monitor();
                                     }
                                 } else {
                                     item.set_checked(false)
                                 }
                             });
 
-                        let new_position = self
+                        let new_position = config
                             .window_placement
                             .get_phy_position()
                             .expect("Failed to get primary monitor position");
@@ -350,15 +360,10 @@ impl ApplicationHandler<UserEvent> for App {
                         window.set_outer_position(new_position);
                     }
                     _ if menu_event_id.starts_with("position_") => {
-                        let window_position = WindowPosition::from_str(menu_event_id)
-                            .expect("Failed to parse window position");
-
-                        self.window_placement.set_window_position(window_position);
-
-                        let new_position = self
-                            .window_placement
-                            .get_phy_position()
-                            .expect("Failed to get primary monitor position");
+                        let mut config = self.config.lock().unwrap();
+                        config
+                            .write_setting("WindowPosition", menu_event_id)
+                            .expect("Failed to write config");
 
                         self.tray_check_menus
                             .as_mut()
@@ -366,12 +371,21 @@ impl ApplicationHandler<UserEvent> for App {
                             .iter()
                             .filter(|item| item.id().as_ref().starts_with("position_"))
                             .for_each(|item| {
-                                if item.id() != menu_event_id {
+                                let id = item.id().as_ref();
+                                if id == menu_event_id && item.is_checked() {
+                                    let window_position = WindowPosition::from_str(menu_event_id)
+                                        .expect("Failed to parse window position");
+                                    config.window_placement.position = window_position;
+                                } else {
                                     item.set_checked(false)
                                 }
                             });
 
-                        window.set_outer_position(new_position);
+                        let window_new_position = config
+                            .window_placement
+                            .get_phy_position()
+                            .expect("Failed to get primary monitor position");
+                        window.set_outer_position(window_new_position);
                     }
                     _ => (),
                 }

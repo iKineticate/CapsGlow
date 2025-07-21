@@ -67,7 +67,6 @@ impl IndicatorIcons {
                 size: (width, height),
             });
         }
-        
 
         None
     }
