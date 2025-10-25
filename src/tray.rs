@@ -28,7 +28,7 @@ fn create_menu(config: &Config) -> Result<(Menu, Vec<CheckMenuItem>)> {
         Some(loc.about),
         Some(AboutMetadata {
             name: Some("CapsGlow".to_owned()),
-            version: Some("0.2.0".to_owned()),
+            version: Some("0.3.0".to_owned()),
             authors: Some(vec!["iKineticate".to_owned()]),
             website: Some("https://github.com/iKineticate/CapsGlow".to_owned()),
             ..Default::default()
