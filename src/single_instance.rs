@@ -30,7 +30,10 @@ impl SingleInstance {
         }
 
         let handle = if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
-            None
+            return Err(anyhow!(
+                "Failed to create single instance mutex: {:?}",
+                unsafe { GetLastError() }
+            ));
         } else {
             Some(handle)
         };
