@@ -1,5 +1,12 @@
+use std::sync::LazyLock;
+
+pub static LOC: LazyLock<&Localization> = LazyLock::new(|| {
+    let language = Language::get_system_language();
+    Localization::get(language)
+});
+
 impl Localization {
-    pub fn get(language: Language) -> &'static Self {
+    fn get(language: Language) -> &'static Self {
         match language {
             Language::Arabic_SaudiArabia => &AR_SA,
             Language::Chinese_HongKongSAR => &ZH_HANT,
@@ -18,12 +25,24 @@ impl Localization {
 }
 
 pub struct Localization {
-    pub exsit: &'static str,
+    pub quit: &'static str,
     pub about: &'static str,
+    pub restart: &'static str,
     pub startup: &'static str,
+    // Setting
+    pub open_config: &'static str,
+    // About
+    pub version: &'static str,
+    pub author: &'static str,
+    pub website: &'static str,
+    pub open_github: &'static str,
+    pub view_updates: &'static str,
+    pub cancel: &'static str,
+    //
+    pub theme: &'static str,
     pub follow_system_theme: &'static str,
     pub follow_indicator_area_theme: &'static str,
-    pub theme: &'static str,
+    //
     pub position: &'static str,
     pub position_center: &'static str,
     pub position_left: &'static str,
@@ -34,19 +53,32 @@ pub struct Localization {
     pub position_top_right: &'static str,
     pub position_bottom_left: &'static str,
     pub position_bottom_right: &'static str,
+    //
     pub select_monitor: &'static str,
     pub select_primary_monitor: &'static str,
     pub select_mouse_monitor: &'static str,
 }
 
 const ZH_CN: Localization = Localization {
-    exsit: "退出",
+    quit: "退出",
     about: "关于",
+    restart: "重启应用",
     startup: "开机自启",
+    //
+    open_config: "打开配置",
+    //
+    version: "版本",
+    author: "作者",
+    website: "网站",
+    open_github: "打开 Github",
+    view_updates: "查看更新",
+    cancel: "取消",
+    //
+    theme: "主题",
     follow_system_theme: "跟随系统主题",
     follow_indicator_area_theme: "跟随指示器区域主题",
-    theme: "主题",
     position: "显示位置",
+    //
     position_center: "中央",
     position_left: "左侧",
     position_right: "右侧",
@@ -57,18 +89,31 @@ const ZH_CN: Localization = Localization {
     position_bottom_left: "左下角",
     position_bottom_right: "右下角",
     select_monitor: "选择显示屏幕",
+    //
     select_primary_monitor: "主屏幕",
     select_mouse_monitor: "鼠标下屏幕",
 };
 
 const ZH_HANT: Localization = Localization {
-    exsit: "退出",
-    about: "關於",
+    quit: "退出",
+    about: "關于",
+    restart: "重啟應用",
     startup: "開機自啓",
+    //
+    open_config: "開啟配置",
+    //
+    version: "版本",
+    author: "作者",
+    website: "網站",
+    open_github: "打開 Github",
+    view_updates: "查看更新",
+    cancel: "取消",
+    //
+    theme: "主題",
     follow_system_theme: "跟隨系統主題",
     follow_indicator_area_theme: "跟隨指示器區域主題",
-    theme: "主題",
     position: "顯示位置",
+    //
     position_center: "中央",
     position_left: "左側",
     position_right: "右側",
@@ -78,18 +123,31 @@ const ZH_HANT: Localization = Localization {
     position_top_right: "右上角",
     position_bottom_left: "左下角",
     position_bottom_right: "右下角",
+    //
     select_monitor: "選擇顯示螢幕",
     select_primary_monitor: "主螢幕",
     select_mouse_monitor: "滑鼠所在螢幕",
 };
 
 const EN_US: Localization = Localization {
-    exsit: "Exit",
+    quit: "Quit",
     about: "About",
+    restart: "Restart App",
     startup: "Launch at Startup",
+    //
+    open_config: "Open Config",
+    //
+    version: "Version",
+    author: "Author",
+    website: "Website",
+    open_github: "Open GitHub",
+    view_updates: "View Updates",
+    cancel: "Cancel",
+    //
+    theme: "Theme",
     follow_system_theme: "Follow System Theme",
     follow_indicator_area_theme: "Follow Indicator Area Theme",
-    theme: "Theme",
+    //
     position: "Position",
     position_center: "Center",
     position_left: "Left",
@@ -100,18 +158,31 @@ const EN_US: Localization = Localization {
     position_top_right: "Top Right",
     position_bottom_left: "Bottom Left",
     position_bottom_right: "Bottom Right",
+    //
     select_monitor: "Select Monitor",
     select_primary_monitor: "Primary Monitor",
     select_mouse_monitor: "Monitor under Mouse",
 };
 
 const JA_JP: Localization = Localization {
-    exsit: "終了",
-    about: "情報",
+    quit: "終了",
+    about: "約",
+    restart: "アプリを再起動する",
     startup: "スタートアップで起動",
+    //
+    open_config: "設定を開く",
+    //
+    version: "バージョン",
+    author: "作者",
+    website: "ウェブサイト",
+    open_github: "GitHub を開く",
+    view_updates: "更新を確認する",
+    cancel: "キャンセル",
+    //
+    theme: "テーマ",
     follow_system_theme: "システムテーマに従う",
     follow_indicator_area_theme: "インジケーターエリアのテーマに従う",
-    theme: "テーマ",
+    //
     position: "表示位置",
     position_center: "中央",
     position_left: "左",
@@ -122,19 +193,32 @@ const JA_JP: Localization = Localization {
     position_top_right: "右上",
     position_bottom_left: "左下",
     position_bottom_right: "右下",
+    //
     select_monitor: "モニターを選択",
     select_primary_monitor: "メインモニター",
     select_mouse_monitor: "マウス下のモニター",
 };
 
 const KO_KR: Localization = Localization {
-    exsit: "종료",
+    quit: "종료",
     about: "정보",
+    restart: "애플리케이션 다시 시작",
     startup: "시작 시 실행",
+    //
+    open_config: "구성 열기",
+    //
+    version: "버전",
+    author: "작성자",
+    website: "웹사이트",
+    open_github: "GitHub 열기",
+    view_updates: "업데이트 확인",
+    cancel: "취소",
+    //
+    theme: "테마",
     follow_system_theme: "시스템 테마 따르기",
     follow_indicator_area_theme: "인디케이터 영역 테마 따르기",
-    theme: "테마",
     position: "표시 위치",
+    //
     position_center: "중앙",
     position_left: "왼쪽",
     position_right: "오른쪽",
@@ -144,18 +228,31 @@ const KO_KR: Localization = Localization {
     position_top_right: "오른쪽 위",
     position_bottom_left: "왼쪽 아래",
     position_bottom_right: "오른쪽 아래",
+    //
     select_monitor: "모니터 선택",
     select_primary_monitor: "기본 모니터",
     select_mouse_monitor: "마우스 아래 모니터",
 };
 
 const DE_DE: Localization = Localization {
-    exsit: "Beenden",
+    quit: "Beenden",
     about: "Über",
+    restart: "Anwendung neu starten",
     startup: "Beim Start ausführen",
+    //
+    open_config: "Konfiguration öffnen",
+    //
+    version: "Version",
+    author: "Autor",
+    website: "Webseite",
+    open_github: "GitHub öffnen",
+    view_updates: "Updates anzeigen",
+    cancel: "Abbrechen",
+    //
+    theme: "Thema",
     follow_system_theme: "Systemthema folgen",
     follow_indicator_area_theme: "Indikatorbereichsthema folgen",
-    theme: "Thema",
+    //
     position: "Position",
     position_center: "Mitte",
     position_left: "Links",
@@ -166,18 +263,31 @@ const DE_DE: Localization = Localization {
     position_top_right: "Oben Rechts",
     position_bottom_left: "Unten Links",
     position_bottom_right: "Unten Rechts",
+    //
     select_monitor: "Monitor auswählen",
     select_primary_monitor: "Primärer Monitor",
     select_mouse_monitor: "Monitor unter Maus",
 };
 
 const RU_RU: Localization = Localization {
-    exsit: "Выход",
+    quit: "Выход",
     about: "О программе",
+    restart: "Перезапустить приложение",
     startup: "Запуск при старте",
+    //
+    open_config: "Открыть конфигурацию",
+    //
+    version: "Версия",
+    author: "Автор",
+    website: "Веб-сайт",
+    open_github: "Открыть GitHub",
+    view_updates: "Просмотреть обновления",
+    cancel: "Отмена",
+    //
+    theme: "Тема",
     follow_system_theme: "Следовать системной теме",
     follow_indicator_area_theme: "Следовать теме области индикатора",
-    theme: "Тема",
+    //
     position: "Положение",
     position_center: "Центр",
     position_left: "Слева",
@@ -188,18 +298,31 @@ const RU_RU: Localization = Localization {
     position_top_right: "Верхний правый",
     position_bottom_left: "Нижний левый",
     position_bottom_right: "Нижний правый",
+    //
     select_monitor: "Выбрать монитор",
     select_primary_monitor: "Основной монитор",
     select_mouse_monitor: "Монитор под мышью",
 };
 
 const AR_SA: Localization = Localization {
-    exsit: "خروج",
+    quit: "خروج",
     about: "حول",
+    restart: "إعادة تشغيل التطبيق",
     startup: "تشغيل عند بدء التشغيل",
+    //
+    open_config: "فتح التهيئة",
+    //
+    version: "الإصدار",
+    author: "المؤلف",
+    website: "الموقع الإلكتروني",
+    open_github: "فتح GitHub",
+    view_updates: "عرض التحديثات",
+    cancel: "إلغاء",
+    //
+    theme: "موضوع",
     follow_system_theme: "اتبع موضوع النظام",
     follow_indicator_area_theme: "اتبع موضوع منطقة المؤشر",
-    theme: "موضوع",
+    //
     position: "الموضع",
     position_center: "الوسط",
     position_left: "يسار",
@@ -210,18 +333,31 @@ const AR_SA: Localization = Localization {
     position_top_right: "أعلى اليمين",
     position_bottom_left: "أسفل اليسار",
     position_bottom_right: "أسفل اليمين",
+    //
     select_monitor: "اختر الشاشة",
     select_primary_monitor: "الشاشة الرئيسية",
     select_mouse_monitor: "الشاشة تحت الفأرة",
 };
 
 const FR_FR: Localization = Localization {
-    exsit: "Quitter",
+    quit: "Quitter",
     about: "À propos",
+    restart: "Redémarrer l’application",
     startup: "Lancer au démarrage",
+    //
+    open_config: "Ouvrir la configurationة",
+    //
+    version: "Version",
+    author: "Auteur",
+    website: "Site web",
+    open_github: "Ouvrir GitHub",
+    view_updates: "Voir les mises à jour",
+    cancel: "Annuler",
+    //
+    theme: "Thème",
     follow_system_theme: "Suivre le thème du système",
     follow_indicator_area_theme: "Suivre le thème de la zone de l'indicateur",
-    theme: "Thème",
+    //
     position: "Position",
     position_center: "Centre",
     position_left: "Gauche",
@@ -232,13 +368,14 @@ const FR_FR: Localization = Localization {
     position_top_right: "Haut droite",
     position_bottom_left: "Bas gauche",
     position_bottom_right: "Bas droite",
+    //
     select_monitor: "Sélectionner l'écran",
     select_primary_monitor: "Écran principal",
     select_mouse_monitor: "Écran sous la souris",
 };
 
 impl Language {
-    pub fn get_system_language() -> Language {
+    fn get_system_language() -> Language {
         let sys_lcid = unsafe { windows::Win32::Globalization::GetSystemDefaultLCID() };
 
         TABLE

@@ -3,42 +3,44 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod config;
-mod font;
 mod icon;
 mod language;
 mod monitor;
+mod single_instance;
 mod startup;
 mod theme;
 mod tray;
 mod uiaccess;
-
-use crate::{
-    config::Config,
-    font::render_font_to_sufface,
-    icon::{IndicatorIcons, render_icon_to_buffer},
-    monitor::{WindowPosition, get_scale_factor},
-    startup::{get_startup_status, set_startup},
-    theme::{Theme, ThemeDetectionSource},
-    tray::create_tray,
-    uiaccess::prepare_uiaccess_token,
-};
+mod util;
+mod window;
 
 use std::{
+    ffi::OsString,
     num::NonZeroU32,
+    process::Command,
     rc::Rc,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+};
+
+use crate::{
+    config::{Config, EXE_PATH, WINDOW_LOGICAL_SIZE},
+    icon::{CustomIcon, load_icon_for_window, render_font_to_sufface, render_icon_to_buffer},
+    monitor::get_scale_factor,
+    single_instance::SingleInstance,
+    tray::{
+        create_tray,
+        menu::{MenuManager, about, handler::MenuHandler},
+    },
+    uiaccess::prepare_uiaccess_token,
 };
 
 use anyhow::{Context, Result, anyhow};
+use log::error;
 use softbuffer::Surface;
-use tray_icon::{
-    TrayIcon,
-    menu::{CheckMenuItem, MenuEvent},
-};
+use tray_icon::{TrayIcon, menu::MenuEvent};
 use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
 use winit::{
     application::ApplicationHandler,
@@ -46,15 +48,16 @@ use winit::{
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     platform::windows::{WindowAttributesExtWindows, WindowExtWindows},
-    window::{Icon, Window, WindowId, WindowLevel},
+    window::{Window, WindowId, WindowLevel},
 };
 
-const WINDOW_LOGICAL_SIZE: f64 = 200.0;
-const TEXT_PADDING: f64 = 20.0;
-const ICON_DATA: &[u8] = include_bytes!("logo.ico");
-
 fn main() -> Result<()> {
-    let _ = prepare_uiaccess_token().inspect(|_| println!("Successful acquisition of Uiaccess"));
+    let _single_instance = SingleInstance::new()?;
+
+    let _uiaccess_token =
+        prepare_uiaccess_token().inspect(|_| println!("Successful acquisition of Uiaccess"));
+
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
 
@@ -65,85 +68,68 @@ fn main() -> Result<()> {
             .expect("Failed to send MenuEvent");
     }));
 
-    let mut app = App::default();
     let proxy = event_loop.create_proxy();
-    app.add_proxy(Some(proxy));
-
-    event_loop.run_app(&mut app).unwrap();
+    let mut app = App::new(proxy);
+    event_loop.run_app(&mut app)?;
 
     Ok(())
 }
 
 struct App {
-    config: Mutex<Config>,
-    event_loop_proxy: Option<EventLoopProxy<UserEvent>>,
-    indicator_icon: Option<IndicatorIcons>,
-    scale_factor: f64,
+    config: Arc<Config>,
+    exit_threads: Arc<AtomicBool>,
+    event_loop_proxy: EventLoopProxy<UserEvent>,
+    custom_icon: Option<CustomIcon>,
+    menu_manager: Mutex<MenuManager>,
     show_indicator: Arc<AtomicBool>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    _tray_icon: Option<TrayIcon>,
-    tray_check_menus: Option<Vec<CheckMenuItem>>,
+    tray: Mutex<TrayIcon>,
     window: Option<Rc<Window>>,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        let indicator_icon = IndicatorIcons::find_icon_from_exe_dir();
-
-        let scale_factor = get_scale_factor();
-        let (windows_phy_width, windows_phy_height) = indicator_icon.as_ref().map_or(
-            (
-                WINDOW_LOGICAL_SIZE * scale_factor,
-                WINDOW_LOGICAL_SIZE * scale_factor,
-            ),
-            |i| (i.size.0 as f64, i.size.1 as f64),
-        );
-
-        let config = Config::oepn(windows_phy_width, windows_phy_height)
-            .expect("Failed to open CapsGlow.ini");
-
-        let (tray_icon, tray_check_menus) =
-            create_tray(&config).expect("Failed to create tray icon");
-
-        Self {
-            config: Mutex::new(config),
-            event_loop_proxy: None,
-            indicator_icon,
-            scale_factor,
-            show_indicator: Arc::new(AtomicBool::new(false)),
-            surface: None,
-            _tray_icon: Some(tray_icon),
-            tray_check_menus: Some(tray_check_menus),
-            window: None,
-        }
-    }
-}
-
-#[derive(Debug)]
-enum UserEvent {
-    MenuEvent(MenuEvent),
-    RedrawRequested,
+    window_phy_height: u32,
+    window_phy_width: u32,
 }
 
 impl App {
-    fn add_proxy(&mut self, event_loop_proxy: Option<EventLoopProxy<UserEvent>>) -> &mut Self {
-        self.event_loop_proxy = event_loop_proxy;
-        self
+    fn new(event_loop_proxy: EventLoopProxy<UserEvent>) -> Self {
+        let config = Config::open().expect("Failed to open config");
+
+        let (tray, menu_manager) = create_tray(&config).expect("Failed to create tray");
+
+        let custom_icon = CustomIcon::find_custom_icon();
+
+        let (window_phy_height, window_phy_width) = custom_icon.as_ref().map_or_else(
+            || {
+                let scale = get_scale_factor();
+                let size = (WINDOW_LOGICAL_SIZE * scale).round() as u32;
+                (size, size)
+            },
+            |i| i.get_size(),
+        );
+
+        Self {
+            config: Arc::new(config),
+            exit_threads: Arc::new(AtomicBool::new(false)),
+            event_loop_proxy,
+            custom_icon,
+            menu_manager: Mutex::new(menu_manager),
+            show_indicator: Arc::new(AtomicBool::new(false)),
+            surface: None,
+            tray: Mutex::new(tray),
+            window: None,
+            window_phy_height,
+            window_phy_width,
+        }
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
-        let window_phy_position = {
-            let config = self.config.lock().unwrap();
-            config.window_placement.get_phy_position()?
-        };
+        let window_phy_position = self
+            .config
+            .window_setting
+            .lock()
+            .unwrap()
+            .get_phy_position(self.window_phy_width, self.window_phy_height)?;
 
-        let window_size = self.indicator_icon.as_ref().map_or(
-            PhysicalSize::new(
-                WINDOW_LOGICAL_SIZE * self.scale_factor,
-                WINDOW_LOGICAL_SIZE * self.scale_factor,
-            ),
-            |i| PhysicalSize::new(i.size.0 as f64, i.size.1 as f64),
-        );
+        let window_size = PhysicalSize::new(self.window_phy_width, self.window_phy_height);
 
         if self.window.is_none() {
             let window = event_loop.create_window(
@@ -156,7 +142,7 @@ impl App {
                     .with_inner_size(window_size)
                     .with_min_inner_size(window_size)
                     .with_max_inner_size(window_size)
-                    .with_window_icon(Some(load_icon(ICON_DATA)?))
+                    .with_window_icon(load_icon_for_window().ok())
                     .with_position(window_phy_position)
                     .with_decorations(false) // 隐藏标题栏
                     .with_transparent(true)
@@ -185,26 +171,30 @@ impl App {
                 )
                 .map_err(|e| anyhow!("Failed to set the size of the buffer - {e}"))?;
 
-            let mut buffer = surface.buffer_mut().unwrap();
+            let mut buffer = surface
+                .buffer_mut()
+                .expect("Failed to get a mutable reference to the buffer");
             buffer.fill(0);
             buffer.present().unwrap();
 
             self.window = Some(window);
             self.surface = Some(surface);
-
-            self.listen_keys()?;
         }
 
         Ok(())
     }
 
-    fn listen_keys(&mut self) -> Result<()> {
+    fn exit(&mut self) {
+        self.exit_threads.store(true, Ordering::Relaxed);
+    }
+
+    fn listen_capslock(&mut self) {
         let last_show_indicator = Arc::clone(&self.show_indicator);
-        let event_loop_proxy = self.event_loop_proxy.clone().unwrap();
+        let event_loop_proxy = self.event_loop_proxy.clone();
 
         std::thread::spawn(move || {
             loop {
-                std::thread::sleep(Duration::from_millis(150));
+                std::thread::sleep(std::time::Duration::from_millis(150));
                 // https://learn.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
                 let current_show_indicator = unsafe { (GetKeyState(0x14) & 0x0001) != 0 };
                 if current_show_indicator.ne(&last_show_indicator.load(Ordering::Relaxed)) {
@@ -215,28 +205,37 @@ impl App {
                 }
             }
         });
-
-        Ok(())
     }
+}
+
+#[derive(Debug)]
+enum UserEvent {
+    Exit,
+    MenuEvent(MenuEvent),
+    Restart,
+    ShowAboutDialog,
+    RedrawRequested,
 }
 
 impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.create_window(event_loop)
             .expect("Failed to create window");
+        self.listen_capslock();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
-        let window = match self.window.as_ref().filter(|w| w.id() == id) {
-            Some(w) => w,
-            None => return,
-        };
-
         match event {
             WindowEvent::CloseRequested => {
+                self.exit();
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                let window = match self.window.as_ref().filter(|w| w.id() == id) {
+                    Some(w) => w,
+                    None => return,
+                };
+
                 let (window_width, window_height): (u32, u32) = window.inner_size().into();
 
                 let surface = self.surface.as_mut().unwrap();
@@ -244,22 +243,19 @@ impl ApplicationHandler<UserEvent> for App {
 
                 if !self.show_indicator.load(Ordering::Relaxed) {
                     buffer.fill(0);
-                    buffer.present().expect("Failed to present the buffer");
                 } else {
                     window.set_skip_taskbar(true);
                     window.set_minimized(false);
 
-                    let (theme_detection_source, indicator_theme) = {
-                        let config = self.config.lock().unwrap();
-                        (
-                            config.theme_detection_source,
-                            config.theme_detection_source.get_theme(self.scale_factor),
-                        )
-                    };
+                    if let Some(custom_icon) = &self.custom_icon {
+                        let theme = self
+                            .config
+                            .indicator_theme
+                            .lock()
+                            .unwrap()
+                            .get_theme(get_scale_factor(), window_width as f64);
 
-                    if let Some(indicator_icon) = &self.indicator_icon {
-                        let (icon_buffer, icon_size) =
-                            indicator_icon.get_icon_date_and_size(&indicator_theme);
+                        let (icon_buffer, icon_size) = custom_icon.get_icon_date_and_size(theme);
 
                         render_icon_to_buffer(
                             &mut buffer,
@@ -270,138 +266,67 @@ impl ApplicationHandler<UserEvent> for App {
                         )
                         .expect("Failed to render icon to surface");
                     } else {
-                        render_font_to_sufface(
-                            &mut buffer,
-                            (theme_detection_source, indicator_theme),
-                            window_width,
-                            window_height,
-                        )
-                        .expect("Failed to render font to surface");
-                    }
+                        let color = self
+                            .config
+                            .indicator_theme
+                            .lock()
+                            .unwrap()
+                            .get_theme(get_scale_factor(), window_width as f64)
+                            .get_font_color();
 
-                    buffer.present().expect("Failed to present the buffer");
+                        render_font_to_sufface(&mut buffer, color, window_width, window_height)
+                            .expect("Failed to render font to surface");
+                    }
                 }
+
+                buffer.present().expect("Failed to present the buffer");
             }
-            _ => (),
+            _ => {}
         }
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
         match event {
+            UserEvent::Exit => {
+                self.exit();
+                event_loop.exit();
+            }
+            UserEvent::MenuEvent(event) => {
+                let mut menu_manager = self.menu_manager.lock().unwrap();
+                menu_manager.handler(event.id(), |is_normal_menu, check_menu| {
+                    let menu_handlers = MenuHandler::new(
+                        event.id().clone(),
+                        is_normal_menu,
+                        check_menu,
+                        Arc::clone(&self.config),
+                        self.event_loop_proxy.clone(),
+                    );
+                    if let Err(e) = menu_handlers.run() {
+                        error!("Failed to handle menu event: {e}")
+                    }
+                });
+            }
             UserEvent::RedrawRequested => {
                 if let Some(window) = self.window.as_ref() {
                     window.request_redraw();
                 }
             }
-            UserEvent::MenuEvent(event) => {
-                let menu_event_id = event.id().as_ref();
-                let window = self.window.as_ref().unwrap();
-                match menu_event_id {
-                    "quit" => event_loop.exit(),
-                    "startup" => {
-                        let enabled = !get_startup_status().expect("Failed to get startup status");
-                        set_startup(enabled).expect("Failed to set Launch at Startup")
-                    }
-                    "follow_indicator_area_theme" | "follow_system_theme" => {
-                        let mut config = self.config.lock().unwrap();
-                        config
-                            .write_setting("ThemeDetectionSource", menu_event_id)
-                            .expect("Failed to write config");
+            UserEvent::Restart => {
+                let args_os: Vec<OsString> = std::env::args_os().collect();
 
-                        self.tray_check_menus
-                            .as_mut()
-                            .expect("Tray check menus not initialized")
-                            .iter()
-                            .filter(|item| item.id().as_ref().ends_with("_theme"))
-                            .for_each(|item| {
-                                let id = item.id().as_ref();
-                                if id == menu_event_id && item.is_checked() {
-                                    if id == "follow_indicator_area_theme" {
-                                        config.theme_detection_source =
-                                            ThemeDetectionSource::IndicatorArea;
-                                    } else if id == "follow_system_theme" {
-                                        config.theme_detection_source =
-                                            ThemeDetectionSource::System;
-                                    }
-                                } else {
-                                    item.set_checked(false)
-                                }
-                            });
-                    }
-                    "select_primary_monitor" | "select_mouse_monitor" => {
-                        let mut config = self.config.lock().unwrap();
-                        config
-                            .write_setting("MonitorSelector", menu_event_id)
-                            .expect("Failed to write config");
-
-                        self.tray_check_menus
-                            .as_mut()
-                            .expect("Tray check menus not initialized")
-                            .iter()
-                            .filter(|item| item.id().as_ref().ends_with("_monitor"))
-                            .for_each(|item| {
-                                let id = item.id().as_ref();
-                                if id == menu_event_id && item.is_checked() {
-                                    if id == "select_primary_monitor" {
-                                        config.window_placement.set_primary_monitor();
-                                    } else if id == "select_mouse_monitor" {
-                                        config.window_placement.set_mouse_monitor();
-                                    }
-                                } else {
-                                    item.set_checked(false)
-                                }
-                            });
-
-                        let new_position = config
-                            .window_placement
-                            .get_phy_position()
-                            .expect("Failed to get primary monitor position");
-
-                        window.set_outer_position(new_position);
-                    }
-                    _ if menu_event_id.starts_with("position_") => {
-                        let mut config = self.config.lock().unwrap();
-                        config
-                            .write_setting("WindowPosition", menu_event_id)
-                            .expect("Failed to write config");
-
-                        self.tray_check_menus
-                            .as_mut()
-                            .expect("Tray check menus not initialized")
-                            .iter()
-                            .filter(|item| item.id().as_ref().starts_with("position_"))
-                            .for_each(|item| {
-                                let id = item.id().as_ref();
-                                if id == menu_event_id && item.is_checked() {
-                                    let window_position = WindowPosition::from_str(menu_event_id)
-                                        .expect("Failed to parse window position");
-                                    config.window_placement.position = window_position;
-                                } else {
-                                    item.set_checked(false)
-                                }
-                            });
-
-                        let window_new_position = config
-                            .window_placement
-                            .get_phy_position()
-                            .expect("Failed to get primary monitor position");
-                        window.set_outer_position(window_new_position);
-                    }
-                    _ => (),
+                if let Err(e) = Command::new(&*EXE_PATH)
+                    .args(args_os.iter().skip(1))
+                    .spawn()
+                {
+                    error!("Failed to restart app: {e}");
                 }
+
+                let _ = self.event_loop_proxy.send_event(UserEvent::Exit);
+            }
+            UserEvent::ShowAboutDialog => {
+                let hwnd = self.tray.lock().unwrap().window_handle();
+                about::show_about_dialog(hwnd as isize);
             }
         }
     }
-}
-
-fn load_icon(icon_data: &[u8]) -> Result<Icon> {
-    let (icon_rgba, icon_width, icon_height) = {
-        let image = image::load_from_memory(icon_data)
-            .context("Failed to open icon path")?
-            .into_rgba8();
-        let (width, height) = image.dimensions();
-        let rgba = image.into_raw();
-        (rgba, width, height)
-    };
-    Icon::from_rgba(icon_rgba, icon_width, icon_height).context("Failed to crate the logo")
 }

@@ -8,24 +8,39 @@ license = "MIT License"
 repository = "https://github.com/iKineticate/CapsGlow"
 
 [dependencies]
+# 错误处理
+anyhow = "1.0.100"
+# 日志
+log = { version = "0.4.29", features = ["release_max_level_off"] }
+env_logger = { version = "0.11.8", default-features = false, features = ["auto-color", "humantime"] }
+# 窗口
 winit = "0.30.12"
 softbuffer = "0.4.8"
-piet-common = "0.8.0"
-bytemuck = "1.24.0"
-tray-icon = "0.21.2"
+# 字体渲染
+ab_glyph = { version = "0.2.32", default-features = false, features = ["std"] }
+# 图像处理
 image = { version = "0.25.9", default-features = false, features = ["ico", "png"] }
+# 字节处理
+bytemuck = "1.24.0"
+# 托盘
+tray-icon = "0.21.2"
 winreg = "0.55.0"
-anyhow = "1.0.100"
 rust-ini = "0.21.3"
+# 配置
+toml = "0.9.10"
+serde= { version = "1.0.228", features = ["derive"] }
 
 [dependencies.windows]
 version = "0.62.2"
 features = [
+    "Win32_System_Registry",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_Globalization",
+    "Win32_UI_Controls",
+    "Win32_UI_Shell",
     # uiaccess
     "Win32_Security",
     "Win32_System_Diagnostics",
@@ -42,6 +57,6 @@ embed-resource = "3.0.6"
 [profile.release]
 lto = "fat"
 codegen-units = 1
-opt-level = "s"
+opt-level = "z"
 panic = "abort"
-strip = "debuginfo"
+strip = true
