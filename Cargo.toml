@@ -8,18 +8,18 @@ license = "MIT License"
 repository = "https://github.com/iKineticate/CapsGlow"
 
 [dependencies]
-winit = "0.30"
-softbuffer = "0.4.6"
+winit = "0.30.12"
+softbuffer = "0.4.8"
 piet-common = "0.8.0"
-bytemuck = "1.23.1"
-tray-icon = "0.21.0"
-image = { version = "0.25", default-features = false, features = ["ico", "png"] }
-winreg = "0.55"
-anyhow = "1"
-rust-ini = "0.21"
+bytemuck = "1.24.0"
+tray-icon = "0.21.2"
+image = { version = "0.25.9", default-features = false, features = ["ico", "png"] }
+winreg = "0.55.0"
+anyhow = "1.0.100"
+rust-ini = "0.21.3"
 
 [dependencies.windows]
-version = "0.62.0"
+version = "0.62.2"
 features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
@@ -37,7 +37,7 @@ features = [
 ]
 
 [build-dependencies]
-embed-resource = "3.0.5"
+embed-resource = "3.0.6"
 
 [profile.release]
 lto = "fat"
