@@ -31,7 +31,7 @@ impl SingleInstance {
 
         let handle = if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
             return Err(anyhow!(
-                "Failed to create single instance mutex: {:?}",
+                "CapsGlow already running, exit the new process: {:?}",
                 unsafe { GetLastError() }
             ));
         } else {
