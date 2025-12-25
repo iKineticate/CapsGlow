@@ -1,6 +1,6 @@
 [package]
 name = "CapsGlow"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 description = "Windows Capslock Indicator"
 authors = ["iKineticate"]
@@ -20,12 +20,9 @@ softbuffer = "0.4.8"
 ab_glyph = { version = "0.2.32", default-features = false, features = ["std"] }
 # 图像处理
 image = { version = "0.25.9", default-features = false, features = ["ico", "png"] }
-# 字节处理
-bytemuck = "1.24.0"
 # 托盘
 tray-icon = "0.21.2"
 winreg = "0.55.0"
-rust-ini = "0.21.3"
 # 配置
 toml = "0.9.10"
 serde= { version = "1.0.228", features = ["derive"] }
@@ -33,21 +30,20 @@ serde= { version = "1.0.228", features = ["derive"] }
 [dependencies.windows]
 version = "0.62.2"
 features = [
-    "Win32_System_Registry",
-    "Win32_UI_Input_KeyboardAndMouse",
-    "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
-    "Win32_Graphics_Gdi",
     "Win32_Globalization",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Registry",
     "Win32_UI_Controls",
+    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
     # uiaccess
     "Win32_Security",
+    "Win32_System_Environment",
     "Win32_System_Diagnostics",
-    "Win32_System_SystemServices",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_SystemServices",
-    "Win32_System_Environment",
     "Win32_System_Threading"
 ]
 

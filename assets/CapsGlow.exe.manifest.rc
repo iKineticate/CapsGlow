@@ -7,8 +7,8 @@ IDI_ICON_MAIN ICON "logo.ico"
 #include <winresrc.h>
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     0,3,5,0
-PRODUCTVERSION  0,3,5,0
+FILEVERSION     0,4,0,0
+PRODUCTVERSION  0,4,0,0
 FILEFLAGSMASK   0x3fL
 #ifdef _DEBUG
 FILEFLAGS       0x1L
@@ -25,12 +25,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "iKineticate\0"
             VALUE "FileDescription",  "CapsGlow\0"
-            VALUE "FileVersion",      "0.3.5.0\0"
+            VALUE "FileVersion",      "0.4.0.0\0"
             VALUE "InternalName",     "CapsGlow\0"
             VALUE "LegalCopyright",   "Copyright (C) 2024 iKineticate\0"
             VALUE "OriginalFilename", "CapsGlow.exe\0"
             VALUE "ProductName",      "CapsGlow\0"
-            VALUE "ProductVersion",   "0.3.5.0\0"
+            VALUE "ProductVersion",   "0.4.0.0\0"
         END
     END
     BLOCK "VarFileInfo"
