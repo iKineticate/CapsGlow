@@ -3,6 +3,7 @@ use std::sync::{LazyLock, Mutex};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use winit::dpi::PhysicalPosition;
 
 use crate::monitor::MonitorSelector;
 use crate::theme::IndicatorTheme;
@@ -103,6 +104,17 @@ impl Config {
 
     pub fn get_window_position(&self) -> WindowPosition {
         self.window_setting.lock().unwrap().position.clone()
+    }
+
+    pub fn get_window_phy_position(
+        &self,
+        window_phy_width: u32,
+        window_phy_height: u32,
+    ) -> Result<PhysicalPosition<i32>> {
+        self.window_setting
+            .lock()
+            .unwrap()
+            .get_phy_position(window_phy_width, window_phy_height)
     }
 }
 

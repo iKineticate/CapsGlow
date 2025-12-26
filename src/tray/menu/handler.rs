@@ -89,6 +89,11 @@ impl MenuHandler {
                             // ...
                         }
                         config.save();
+
+                        let _ = proxy
+                            .send_event(UserEvent::MoveWindow)
+                            .context("Failed to send 'Move Window' event");
+
                         Ok(())
                     }
                     // GroupSingle
@@ -99,6 +104,9 @@ impl MenuHandler {
                         {
                             config.set_window_position(position.clone());
                             config.save();
+                            let _ = proxy
+                                .send_event(UserEvent::MoveWindow)
+                                .context("Failed to send 'Move Window' event");
                         }
                         Ok(())
                     }

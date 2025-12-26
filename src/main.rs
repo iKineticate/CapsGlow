@@ -15,6 +15,7 @@ mod util;
 mod window;
 
 use std::{
+    cmp::min,
     ffi::OsString,
     num::NonZeroU32,
     process::Command,
@@ -212,6 +213,7 @@ impl App {
 enum UserEvent {
     Exit,
     MenuEvent(MenuEvent),
+    MoveWindow,
     Restart,
     ShowAboutDialog,
     RedrawRequested,
@@ -248,12 +250,11 @@ impl ApplicationHandler<UserEvent> for App {
                     window.set_minimized(false);
 
                     if let Some(custom_icon) = &self.custom_icon {
-                        let theme = self
-                            .config
-                            .indicator_theme
-                            .lock()
-                            .unwrap()
-                            .get_theme(get_scale_factor(), window_width as f64);
+                        let theme =
+                            self.config.indicator_theme.lock().unwrap().get_theme(
+                                get_scale_factor(),
+                                min(window_width, window_height) as f64,
+                            );
 
                         let (icon_buffer, icon_size) = custom_icon.get_icon_date_and_size(theme);
 
@@ -271,7 +272,7 @@ impl ApplicationHandler<UserEvent> for App {
                             .indicator_theme
                             .lock()
                             .unwrap()
-                            .get_theme(get_scale_factor(), window_width as f64)
+                            .get_theme(get_scale_factor(), min(window_width, window_height) as f64)
                             .get_font_color();
 
                         render_font_to_sufface(&mut buffer, color, window_width, window_height)
@@ -305,6 +306,18 @@ impl ApplicationHandler<UserEvent> for App {
                         error!("Failed to handle menu event: {e}")
                     }
                 });
+            }
+            UserEvent::MoveWindow => {
+                if let Some(window) = self.window.as_ref() {
+                    let (window_width, window_height): (u32, u32) = window.inner_size().into();
+
+                    let window_phy_position = self
+                        .config
+                        .get_window_phy_position(window_width, window_height)
+                        .expect("Failed to get window physical position");
+
+                    window.set_outer_position(window_phy_position);
+                }
             }
             UserEvent::RedrawRequested => {
                 if let Some(window) = self.window.as_ref() {
