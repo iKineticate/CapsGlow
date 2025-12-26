@@ -78,7 +78,7 @@ impl IndicatorTheme {
         }
     }
 
-    pub fn get_indicator_area_theme(scale: f64, window_phy_size: f64) -> SystemTheme {
+    fn get_indicator_area_theme(scale: f64, window_phy_size: f64) -> SystemTheme {
         unsafe {
             let hdc_screen = GetDC(None);
 
