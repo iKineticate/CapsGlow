@@ -165,9 +165,12 @@ pub fn render_font_to_sufface(
             let screen_x = start_x + x as i32;
             let screen_y = start_y + y as i32;
 
-            if screen_x < 0 || screen_x >= window_physical_width as i32 || 
-                screen_y < 0 || screen_y >= window_physical_height as i32 {
-                    return;
+            if screen_x < 0
+                || screen_x >= window_physical_width as i32
+                || screen_y < 0
+                || screen_y >= window_physical_height as i32
+            {
+                return;
             }
 
             let out_a = coverage * sa;
@@ -212,8 +215,12 @@ pub fn render_icon_to_buffer(
     // let end_y = (start_y + icon_size.1).min(window_physical_height);
     // let render_width = end_x.saturating_sub(start_x);
     // let render_height = end_y.saturating_sub(start_y);
-    let render_width = icon_size.0.min(window_physical_width.saturating_sub(start_x));
-    let render_height = icon_size.1.min(window_physical_height.saturating_sub(start_y));
+    let render_width = icon_size
+        .0
+        .min(window_physical_width.saturating_sub(start_x));
+    let render_height = icon_size
+        .1
+        .min(window_physical_height.saturating_sub(start_y));
     // 遍历需要渲染的每个像素
     for y in 0..render_height {
         for x in 0..render_width {
@@ -231,7 +238,7 @@ pub fn render_icon_to_buffer(
 
             // 修正后的索引计算：y * 宽度 + x
             let idx = (dst_y * stride + dst_x) as usize;
-            
+
             // 写入 buffer
             if idx < buffer.len() {
                 buffer[idx] = (a << 24) | (r << 16) | (g << 8) | b;
