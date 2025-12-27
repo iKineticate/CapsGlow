@@ -277,54 +277,7 @@ impl ApplicationHandler<UserEvent> for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                let window = match self.window.as_ref().filter(|w| w.id() == id) {
-                    Some(w) => w,
-                    None => return,
-                };
-
-                let (window_width, window_height): (u32, u32) = window.inner_size().into();
-
-                let surface = self.surface.as_mut().unwrap();
-                let mut buffer = surface.buffer_mut().unwrap();
-
-                if !self.show_indicator.load(Ordering::Relaxed) {
-                    buffer.fill(0);
-                } else {
-                    window.set_skip_taskbar(true);
-                    window.set_minimized(false);
-
-                    if let Some(custom_icon) = &self.custom_icon {
-                        let theme =
-                            self.config.indicator_theme.lock().unwrap().get_theme(
-                                get_scale_factor(),
-                                min(window_width, window_height) as f64,
-                            );
-
-                        let (icon_buffer, icon_size) = custom_icon.get_icon_date_and_size(theme);
-
-                        render_icon_to_buffer(
-                            &mut buffer,
-                            &icon_buffer,
-                            icon_size,
-                            window_width,
-                            window_height,
-                        )
-                        .expect("Failed to render icon to surface");
-                    } else {
-                        let color = self
-                            .config
-                            .indicator_theme
-                            .lock()
-                            .unwrap()
-                            .get_theme(get_scale_factor(), min(window_width, window_height) as f64)
-                            .get_font_color();
-
-                        render_font_to_sufface(&mut buffer, color, window_width, window_height)
-                            .expect("Failed to render font to surface");
-                    }
-                }
-
-                buffer.present().expect("Failed to present the buffer");
+                // WARN: 发送 windows.request_redraw() 请求重绘，如果托盘菜单正在打开中，Windows 消息循环（Message Loop）被阻塞，会导致重绘失败
             }
             _ => {}
         }
@@ -371,7 +324,52 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::RedrawRequested => {
                 if let Some(window) = self.window.as_ref() {
-                    window.request_redraw();
+                    // window.request_redraw();
+
+                    let (window_width, window_height): (u32, u32) = window.inner_size().into();
+
+                    let surface = self.surface.as_mut().unwrap();
+                    let mut buffer = surface.buffer_mut().unwrap();
+
+                    if !self.show_indicator.load(Ordering::Relaxed) {
+                        buffer.fill(0);
+                    } else {
+                        window.set_skip_taskbar(true);
+                        window.set_minimized(false);
+
+                        if let Some(custom_icon) = &self.custom_icon {
+                            let theme =
+                                self.config.indicator_theme.lock().unwrap().get_theme(
+                                    get_scale_factor(),
+                                    min(window_width, window_height) as f64,
+                                );
+
+                            let (icon_buffer, icon_size) = custom_icon.get_icon_date_and_size(theme);
+
+                            render_icon_to_buffer(
+                                &mut buffer,
+                                &icon_buffer,
+                                icon_size,
+                                window_width,
+                                window_height,
+                            )
+                            .expect("Failed to render icon to surface");
+                        } else {
+                            let color = self
+                                .config
+                                .indicator_theme
+                                .lock()
+                                .unwrap()
+                                .get_theme(get_scale_factor(), min(window_width, window_height) as f64)
+                                .get_font_color();
+
+                            render_font_to_sufface(&mut buffer, color, window_width, window_height)
+                                .expect("Failed to render font to surface");
+                        }
+                    }
+
+                    buffer.present().expect("Failed to present the buffer");
+
                 } else {
                     self.create_window(event_loop)
                         .expect("Failed to create window");
