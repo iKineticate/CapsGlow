@@ -77,8 +77,8 @@ const ZH_CN: Localization = Localization {
     theme: "主题",
     follow_system_theme: "跟随系统主题",
     follow_indicator_area_theme: "跟随指示器区域主题",
-    position: "显示位置",
     //
+    position: "显示位置",
     position_center: "中央",
     position_left: "左侧",
     position_right: "右侧",
@@ -88,8 +88,8 @@ const ZH_CN: Localization = Localization {
     position_top_right: "右上角",
     position_bottom_left: "左下角",
     position_bottom_right: "右下角",
-    select_monitor: "选择显示屏幕",
     //
+    select_monitor: "显示屏幕",
     select_primary_monitor: "主屏幕",
     select_mouse_monitor: "鼠标下屏幕",
 };
@@ -124,7 +124,7 @@ const ZH_HANT: Localization = Localization {
     position_bottom_left: "左下角",
     position_bottom_right: "右下角",
     //
-    select_monitor: "選擇顯示螢幕",
+    select_monitor: "顯示螢幕",
     select_primary_monitor: "主螢幕",
     select_mouse_monitor: "滑鼠所在螢幕",
 };
