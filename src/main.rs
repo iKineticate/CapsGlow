@@ -42,13 +42,14 @@ use anyhow::{Context, Result, anyhow};
 use log::error;
 use softbuffer::Surface;
 use tray_icon::{TrayIcon, menu::MenuEvent};
-use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyState;
+use windows::Win32::{Foundation::HWND, UI::Input::KeyboardAndMouse::GetKeyState};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
-    platform::windows::{WindowAttributesExtWindows, WindowExtWindows},
+    platform::windows::{WindowAttributesExtWindows, WindowExtWindows, CornerPreference},
+    raw_window_handle::{HasWindowHandle, RawWindowHandle},
     window::{Window, WindowId, WindowLevel},
 };
 
@@ -77,7 +78,7 @@ fn main() -> Result<()> {
 }
 
 struct App {
-    close_window: Arc<AtomicU64>,
+    close_window_time: Arc<AtomicU64>,
     config: Arc<Config>,
     exit_threads: Arc<AtomicBool>,
     event_loop_proxy: EventLoopProxy<UserEvent>,
@@ -109,7 +110,7 @@ impl App {
         );
 
         Self {
-            close_window: Arc::new(AtomicU64::new(0)),
+            close_window_time: Arc::new(AtomicU64::new(0)),
             config: Arc::new(config),
             exit_threads: Arc::new(AtomicBool::new(false)),
             event_loop_proxy,
@@ -137,7 +138,9 @@ impl App {
         if self.window.is_none() {
             let window = event_loop.create_window(
                 Window::default_attributes()
+                    .with_visible(false)
                     .with_title("CapsGlow")
+                    .with_corner_preference(CornerPreference::DoNotRound)
                     .with_skip_taskbar(!cfg!(debug_assertions)) // 隐藏任务栏图标
                     .with_undecorated_shadow(cfg!(debug_assertions)) // 隐藏窗口阴影
                     .with_content_protected(!cfg!(debug_assertions)) // 防止窗口被其他应用捕获
@@ -153,9 +156,33 @@ impl App {
                     .with_resizable(false),
             )?;
 
+            // 关闭窗口淡入淡出动画
+            if let Ok(handle) = window.window_handle() {
+                if let RawWindowHandle::Win32(win32_handle) = handle.as_raw() {
+                    unsafe {
+                        let hwnd = HWND(win32_handle.hwnd.get() as *mut _);
+                        let corner_preference = 1i32;
+                        let result = windows::Win32::Graphics::Dwm::DwmSetWindowAttribute(
+                            hwnd,
+                            windows::Win32::Graphics::Dwm::DWMWA_TRANSITIONS_FORCEDISABLED,
+                            &corner_preference as *const i32 as *const _,
+                            std::mem::size_of::<i32>() as u32,
+                        );
+                        if result.is_err() {
+                            log::error!(
+                                "Failed to set DWMWA_TRANSITIONS_FORCEDISABLED attribute: {:?}",
+                                result
+                            );
+                        }
+                    }
+                }
+            }
+
+            window.set_visible(true);
             window.set_enable(false);
             window.set_cursor_hittest(false).unwrap();
-            window.request_redraw();
+
+            let _ = self.event_loop_proxy.send_event(UserEvent::RedrawRequested);
 
             let (window, _context, mut surface) = {
                 let window = Rc::new(window);
@@ -173,12 +200,6 @@ impl App {
                     NonZeroU32::new(height).with_context(|| "Hight must be non-zero")?,
                 )
                 .map_err(|e| anyhow!("Failed to set the size of the buffer - {e}"))?;
-
-            let mut buffer = surface
-                .buffer_mut()
-                .expect("Failed to get a mutable reference to the buffer");
-            buffer.fill(0);
-            buffer.present().unwrap();
 
             self.window = Some(window);
             self.surface = Some(surface);
@@ -210,7 +231,7 @@ impl App {
     }
 
     fn auto_close_window(&self) {
-        let close_window = Arc::clone(&self.close_window);
+        let close_window_time = Arc::clone(&self.close_window_time);
         let exit_threads = Arc::clone(&self.exit_threads);
         let proxy = self.event_loop_proxy.clone();
         let show_indicator = Arc::clone(&self.show_indicator);
@@ -218,13 +239,12 @@ impl App {
         std::thread::spawn(move || {
             while !exit_threads.load(Ordering::Relaxed) {
                 std::thread::sleep(std::time::Duration::from_mins(1));
-                if close_window.load(Ordering::Relaxed) > 2
+
+                if close_window_time.fetch_add(1, Ordering::Relaxed) >= 2
                     && !show_indicator.load(Ordering::Relaxed)
                 {
-                    close_window.store(0, Ordering::Relaxed);
+                    close_window_time.store(0, Ordering::Relaxed);
                     let _ = proxy.send_event(UserEvent::CloseWindow);
-                } else {
-                    close_window.fetch_add(1, Ordering::Relaxed);
                 }
             }
         });
@@ -250,7 +270,7 @@ impl ApplicationHandler<UserEvent> for App {
         self.auto_close_window();
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
                 self.exit();
