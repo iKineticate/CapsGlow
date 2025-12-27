@@ -22,7 +22,7 @@ use std::{
     rc::Rc,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 
@@ -77,6 +77,7 @@ fn main() -> Result<()> {
 }
 
 struct App {
+    close_window: Arc<AtomicU64>,
     config: Arc<Config>,
     exit_threads: Arc<AtomicBool>,
     event_loop_proxy: EventLoopProxy<UserEvent>,
@@ -108,6 +109,7 @@ impl App {
         );
 
         Self {
+            close_window: Arc::new(AtomicU64::new(0)),
             config: Arc::new(config),
             exit_threads: Arc::new(AtomicBool::new(false)),
             event_loop_proxy,
@@ -189,20 +191,40 @@ impl App {
         self.exit_threads.store(true, Ordering::Relaxed);
     }
 
-    fn listen_capslock(&mut self) {
+    fn listen_capslock(&self) {
+        let exit_threads = Arc::clone(&self.exit_threads);
         let last_show_indicator = Arc::clone(&self.show_indicator);
-        let event_loop_proxy = self.event_loop_proxy.clone();
+        let proxy = self.event_loop_proxy.clone();
 
         std::thread::spawn(move || {
-            loop {
+            while !exit_threads.load(Ordering::Relaxed) {
                 std::thread::sleep(std::time::Duration::from_millis(150));
                 // https://learn.microsoft.com/zh-cn/windows/win32/inputdev/virtual-key-codes?redirectedfrom=MSDN
                 let current_show_indicator = unsafe { (GetKeyState(0x14) & 0x0001) != 0 };
                 if current_show_indicator.ne(&last_show_indicator.load(Ordering::Relaxed)) {
                     last_show_indicator.store(current_show_indicator, Ordering::Relaxed);
-                    event_loop_proxy
-                        .send_event(UserEvent::RedrawRequested)
-                        .expect("Failed to send RedrawRequested event");
+                    let _ = proxy.send_event(UserEvent::RedrawRequested);
+                }
+            }
+        });
+    }
+
+    fn auto_close_window(&self) {
+        let close_window = Arc::clone(&self.close_window);
+        let exit_threads = Arc::clone(&self.exit_threads);
+        let proxy = self.event_loop_proxy.clone();
+        let show_indicator = Arc::clone(&self.show_indicator);
+
+        std::thread::spawn(move || {
+            while !exit_threads.load(Ordering::Relaxed) {
+                std::thread::sleep(std::time::Duration::from_mins(1));
+                if close_window.load(Ordering::Relaxed) > 2
+                    && !show_indicator.load(Ordering::Relaxed)
+                {
+                    close_window.store(0, Ordering::Relaxed);
+                    let _ = proxy.send_event(UserEvent::CloseWindow);
+                } else {
+                    close_window.fetch_add(1, Ordering::Relaxed);
                 }
             }
         });
@@ -211,6 +233,7 @@ impl App {
 
 #[derive(Debug)]
 enum UserEvent {
+    CloseWindow,
     Exit,
     MenuEvent(MenuEvent),
     MoveWindow,
@@ -224,6 +247,7 @@ impl ApplicationHandler<UserEvent> for App {
         self.create_window(event_loop)
             .expect("Failed to create window");
         self.listen_capslock();
+        self.auto_close_window();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
@@ -288,6 +312,11 @@ impl ApplicationHandler<UserEvent> for App {
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
         match event {
+            UserEvent::CloseWindow => {
+                let _ = self.window.take();
+                let _ = self.surface.take();
+                log::info!("Window closed to save resources");
+            }
             UserEvent::Exit => {
                 self.exit();
                 event_loop.exit();
@@ -302,9 +331,10 @@ impl ApplicationHandler<UserEvent> for App {
                         Arc::clone(&self.config),
                         self.event_loop_proxy.clone(),
                     );
-                    if let Err(e) = menu_handlers.run() {
-                        error!("Failed to handle menu event: {e}")
-                    }
+
+                    let _ = menu_handlers
+                        .run()
+                        .inspect_err(|e| error!("Failed to handle menu event: {e}"));
                 });
             }
             UserEvent::MoveWindow => {
@@ -322,6 +352,9 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::RedrawRequested => {
                 if let Some(window) = self.window.as_ref() {
                     window.request_redraw();
+                } else {
+                    self.create_window(event_loop)
+                        .expect("Failed to create window");
                 }
             }
             UserEvent::Restart => {
