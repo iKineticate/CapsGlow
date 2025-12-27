@@ -276,11 +276,11 @@ pub fn create_menu(config: &Config) -> Result<(Menu, MenuManager)> {
         .append(&menu_separator)
         .context("Failed to apped 'Separator' to Tray Menu")?;
     tray_menu
-        .append(&menu_separator)
-        .context("Failed to apped 'Separator' to Tray Menu")?;
-    tray_menu
         .append(&menu_open_config)
         .context("Failed to apped 'Open Config' to Tray Menu")?;
+    tray_menu
+        .append(&menu_separator)
+        .context("Failed to apped 'Separator' to Tray Menu")?;
     tray_menu
         .append(&menu_startup)
         .context("Failed to apped 'Satr up' to Tray Menu")?;
