@@ -126,6 +126,10 @@ impl App {
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<()> {
+        if self.window.is_some() {
+            return Ok(());
+        }
+
         let window_phy_position = self
             .config
             .window_setting
@@ -135,71 +139,70 @@ impl App {
 
         let window_size = PhysicalSize::new(self.window_phy_width, self.window_phy_height);
 
-        if self.window.is_none() {
-            let window = event_loop.create_window(
-                Window::default_attributes()
-                    .with_visible(false)
-                    .with_title("CapsGlow")
-                    .with_corner_preference(CornerPreference::DoNotRound)
-                    .with_skip_taskbar(!cfg!(debug_assertions)) // 隐藏任务栏图标
-                    .with_undecorated_shadow(cfg!(debug_assertions)) // 隐藏窗口阴影
-                    .with_content_protected(!cfg!(debug_assertions)) // 防止窗口被其他应用捕获
-                    .with_window_level(WindowLevel::AlwaysOnTop) // 置顶
-                    .with_inner_size(window_size)
-                    .with_min_inner_size(window_size)
-                    .with_max_inner_size(window_size)
-                    .with_window_icon(load_icon_for_window().ok())
-                    .with_position(window_phy_position)
-                    .with_decorations(false) // 隐藏标题栏
-                    .with_transparent(true)
-                    .with_active(false)
-                    .with_resizable(false),
-            )?;
+        let window_attributes = Window::default_attributes()
+            .with_visible(false)
+            .with_title("CapsGlow")
+            .with_corner_preference(CornerPreference::DoNotRound)
+            .with_skip_taskbar(!cfg!(debug_assertions)) // 隐藏任务栏图标
+            .with_undecorated_shadow(cfg!(debug_assertions)) // 隐藏窗口阴影
+            .with_content_protected(!cfg!(debug_assertions)) // 防止窗口被其他应用捕获
+            .with_window_level(WindowLevel::AlwaysOnTop) // 置顶
+            .with_inner_size(window_size)
+            .with_min_inner_size(window_size)
+            .with_max_inner_size(window_size)
+            .with_window_icon(load_icon_for_window().ok())
+            .with_position(window_phy_position)
+            .with_decorations(false) // 隐藏标题栏
+            .with_transparent(true)
+            .with_blur(false)
+            .with_active(false)
+            .with_resizable(false);
 
-            // 关闭窗口淡入淡出动画
-            if let Ok(handle) = window.window_handle()
-                && let RawWindowHandle::Win32(win32_handle) = handle.as_raw()
-            {
-                let hwnd = HWND(win32_handle.hwnd.get() as *mut _);
-                let corner_preference = 1i32;
-                if let Err(e) = unsafe {
-                    windows::Win32::Graphics::Dwm::DwmSetWindowAttribute(
-                        hwnd,
-                        windows::Win32::Graphics::Dwm::DWMWA_TRANSITIONS_FORCEDISABLED,
-                        &corner_preference as *const i32 as *const _,
-                        std::mem::size_of::<i32>() as u32,
-                    )
-                } {
-                    log::error!("Failed to set DWMWA_TRANSITIONS_FORCEDISABLED attribute: {e:?}");
-                }
-            }
+        let window = event_loop.create_window(window_attributes)?;
 
-            window.set_visible(true);
-            window.set_enable(false);
-            window.set_cursor_hittest(false).unwrap();
-
-            let _ = self.event_loop_proxy.send_event(UserEvent::RedrawRequested);
-
-            let (window, _context, mut surface) = {
-                let window = Rc::new(window);
-                let context = softbuffer::Context::new(window.clone())
-                    .map_err(|e| anyhow!("Failed to create a new instance of context - {e}"))?;
-                let surface = Surface::new(&context, window.clone())
-                    .map_err(|e| anyhow!("Failed to create a surface - {e}"))?;
-                (window, context, surface)
-            };
-
-            let (width, height): (u32, u32) = window.inner_size().into();
-            surface
-                .resize(
-                    NonZeroU32::new(width).with_context(|| "Width must be non-zero")?,
-                    NonZeroU32::new(height).with_context(|| "Hight must be non-zero")?,
+        // 关闭窗口淡入淡出动画
+        if let Ok(handle) = window.window_handle()
+            && let RawWindowHandle::Win32(win32_handle) = handle.as_raw()
+        {
+            let hwnd = HWND(win32_handle.hwnd.get() as *mut _);
+            let corner_preference = 1i32;
+            if let Err(e) = unsafe {
+                windows::Win32::Graphics::Dwm::DwmSetWindowAttribute(
+                    hwnd,
+                    windows::Win32::Graphics::Dwm::DWMWA_TRANSITIONS_FORCEDISABLED,
+                    &corner_preference as *const i32 as *const _,
+                    std::mem::size_of::<i32>() as u32,
                 )
-                .map_err(|e| anyhow!("Failed to set the size of the buffer - {e}"))?;
-
-            self.window = Some(window);
-            self.surface = Some(surface);
+            } {
+                log::error!("Failed to set DWMWA_TRANSITIONS_FORCEDISABLED attribute: {e:?}");
+            }
         }
+
+        let (window, _context, mut surface) = {
+            let window = Rc::new(window);
+            let context = softbuffer::Context::new(window.clone())
+                .map_err(|e| anyhow!("Failed to create a new instance of context - {e}"))?;
+            let surface = Surface::new(&context, window.clone())
+                .map_err(|e| anyhow!("Failed to create a surface - {e}"))?;
+            (window, context, surface)
+        };
+
+        let (width, height): (u32, u32) = window.inner_size().into();
+        surface
+            .resize(
+                NonZeroU32::new(width).with_context(|| "Width must be non-zero")?,
+                NonZeroU32::new(height).with_context(|| "Hight must be non-zero")?,
+            )
+            .map_err(|e| anyhow!("Failed to set the size of the buffer - {e}"))?;
+
+        window.set_visible(true);
+        window.set_enable(false);
+        let _ = window.set_cursor_hittest(false); // 鼠标穿透
+
+        self.window = Some(window);
+        self.surface = Some(surface);
+
+        let _ = self.event_loop_proxy.send_event(UserEvent::RedrawRequested);
 
         Ok(())
     }
@@ -226,7 +229,7 @@ impl App {
         });
     }
 
-    fn auto_close_window(&self) {
+    fn auto_hide_window(&self) {
         let close_window_time = Arc::clone(&self.close_window_time);
         let exit_threads = Arc::clone(&self.exit_threads);
         let proxy = self.event_loop_proxy.clone();
@@ -236,11 +239,11 @@ impl App {
             while !exit_threads.load(Ordering::Relaxed) {
                 std::thread::sleep(std::time::Duration::from_mins(1));
 
-                if close_window_time.fetch_add(1, Ordering::Relaxed) >= 2
+                if close_window_time.fetch_add(1, Ordering::Relaxed) >= 1
                     && !show_indicator.load(Ordering::Relaxed)
                 {
                     close_window_time.store(0, Ordering::Relaxed);
-                    let _ = proxy.send_event(UserEvent::CloseWindow);
+                    let _ = proxy.send_event(UserEvent::HideWindow);
                 }
             }
         });
@@ -249,7 +252,7 @@ impl App {
 
 #[derive(Debug)]
 enum UserEvent {
-    CloseWindow,
+    HideWindow,
     Exit,
     MenuEvent(MenuEvent),
     MoveWindow,
@@ -263,7 +266,7 @@ impl ApplicationHandler<UserEvent> for App {
         self.create_window(event_loop)
             .expect("Failed to create window");
         self.listen_capslock();
-        self.auto_close_window();
+        self.auto_hide_window();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -281,10 +284,11 @@ impl ApplicationHandler<UserEvent> for App {
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
         match event {
-            UserEvent::CloseWindow => {
-                let _ = self.window.take();
-                let _ = self.surface.take();
-                log::info!("Window closed to save resources");
+            UserEvent::HideWindow => {
+                if let Some(window) = self.window.as_ref() {
+                    window.set_visible(false);
+                    log::info!("Window set invisible");
+                }
             }
             UserEvent::Exit => {
                 self.exit();
@@ -320,16 +324,16 @@ impl ApplicationHandler<UserEvent> for App {
             }
             UserEvent::RedrawRequested => {
                 if let Some(window) = self.window.as_ref() {
-                    // window.request_redraw();
+                    window.set_visible(true);
 
                     let (window_width, window_height): (u32, u32) = window.inner_size().into();
 
                     let surface = self.surface.as_mut().unwrap();
                     let mut buffer = surface.buffer_mut().unwrap();
 
-                    if !self.show_indicator.load(Ordering::Relaxed) {
-                        buffer.fill(0);
-                    } else {
+                    buffer.fill(0);
+
+                    if self.show_indicator.load(Ordering::Relaxed) {
                         window.set_skip_taskbar(true);
                         window.set_minimized(false);
 

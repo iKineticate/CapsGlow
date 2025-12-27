@@ -108,8 +108,6 @@ pub fn render_font_to_sufface(
     window_physical_width: u32,
     window_physical_height: u32,
 ) -> Result<()> {
-    buffer.fill(0);
-
     let font_path = r"C:\WINDOWS\FONTS\SEGUIEMJ.TTF";
     let font_data = std::fs::read(font_path)?;
     let font = FontVec::try_from_vec(font_data).context("Failed to parse font")?;
@@ -204,8 +202,6 @@ pub fn render_icon_to_buffer(
     window_physical_width: u32,
     window_physical_height: u32,
 ) -> Result<()> {
-    buffer.fill(0);
-
     let stride = u32::from(buffer.width());
 
     // 计算居中位置
