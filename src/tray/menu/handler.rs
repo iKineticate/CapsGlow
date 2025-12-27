@@ -68,7 +68,7 @@ impl MenuHandler {
             if let Some(group) = group {
                 match group {
                     // GroupSingle
-                    MenuGroup::IndicatorIcon => {
+                    MenuGroup::IndicatorIconTheme => {
                         if id == &*FOLLOW_INDICATOR_AREA_THEME {
                             config.set_indicator_indicator_area_theme();
                         } else if id == &*FOLLOW_SYSTEM_THEME {

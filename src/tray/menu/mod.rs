@@ -15,7 +15,7 @@ pub enum MenuGroup {
     // GroupSingle
     WindowPosition,
     MonitorSelector,
-    IndicatorIcon,
+    IndicatorIconTheme,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

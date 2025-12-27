@@ -137,7 +137,7 @@ impl CreateMenuItem {
         self.0.insert(
             FOLLOW_INDICATOR_AREA_THEME.clone(),
             MenuKind::GroupSingle(
-                MenuGroup::IndicatorIcon,
+                MenuGroup::IndicatorIconTheme,
                 Some(FOLLOW_INDICATOR_AREA_THEME.clone()),
             ),
             Some(menu_follow_indicator_area_theme.clone()),
@@ -145,7 +145,7 @@ impl CreateMenuItem {
         self.0.insert(
             FOLLOW_SYSTEM_THEME.clone(),
             MenuKind::GroupSingle(
-                MenuGroup::IndicatorIcon,
+                MenuGroup::IndicatorIconTheme,
                 Some(FOLLOW_INDICATOR_AREA_THEME.clone()),
             ),
             Some(menu_follow_system_theme.clone()),
