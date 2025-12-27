@@ -63,6 +63,7 @@ impl CustomIcon {
             // 确保深浅色图标大小一致
             let (width, height) = icon_dark_date.dimensions();
             if icon_light_date.dimensions() != (width, height) {
+                log::error!("Icon size mismatch between light and dark themes.");
                 None
             } else {
                 Some(CustomIcon {
@@ -92,6 +93,7 @@ impl CustomIcon {
     }
 
     pub fn get_size(&self) -> (u32, u32) {
+        log::info!("Custom icon size: {:?}", self.size);
         self.size
     }
 }
@@ -211,16 +213,13 @@ pub fn render_icon_to_buffer(
     let start_y = (window_physical_height.saturating_sub(icon_size.1)) / 2;
 
     // 确保图标不会超出窗口边界
-    // let end_x = (start_x + icon_size.0).min(window_physical_width);
-    // let end_y = (start_y + icon_size.1).min(window_physical_height);
-    // let render_width = end_x.saturating_sub(start_x);
-    // let render_height = end_y.saturating_sub(start_y);
     let render_width = icon_size
         .0
         .min(window_physical_width.saturating_sub(start_x));
     let render_height = icon_size
         .1
         .min(window_physical_height.saturating_sub(start_y));
+
     // 遍历需要渲染的每个像素
     for y in 0..render_height {
         for x in 0..render_width {
@@ -243,10 +242,6 @@ pub fn render_icon_to_buffer(
             if idx < buffer.len() {
                 buffer[idx] = (a << 24) | (r << 16) | (g << 8) | b;
             }
-            // if dst_x < window_physical_width && dst_y < window_physical_height {
-            //     let idx = (dst_y * window_physical_height + dst_x) as usize;
-            //     buffer[idx] = (a << 24) | (r << 16) | (g << 8) | b;
-            // }
         }
     }
 
