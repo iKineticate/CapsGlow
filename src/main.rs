@@ -100,7 +100,7 @@ impl App {
 
         let custom_icon = CustomIcon::find_custom_icon();
 
-        let (window_phy_height, window_phy_width) = custom_icon.as_ref().map_or_else(
+        let (window_phy_width, window_phy_height) = custom_icon.as_ref().map_or_else(
             || {
                 let scale = get_scale_factor();
                 let size = (WINDOW_LOGICAL_SIZE * scale).round() as u32;
