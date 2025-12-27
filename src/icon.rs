@@ -110,13 +110,13 @@ pub fn render_font_to_sufface(
 ) -> Result<()> {
     buffer.fill(0);
 
-    let font_path = r"C:\WINDOWS\FONTS\SEGOEICONS.TTF";
+    let font_path = r"C:\WINDOWS\FONTS\SEGUIEMJ.TTF";
     let font_data = std::fs::read(font_path)?;
     let font = FontVec::try_from_vec(font_data).context("Failed to parse font")?;
 
     let base_scale = PxScale::from(100.0); // 任意较大的基准值
 
-    let glyph_id = font.glyph_id('\u{E72E}');
+    let glyph_id = font.glyph_id('\u{1F512}');
     let glyph = glyph_id.with_scale(base_scale);
     let outlined = font.outline_glyph(glyph).unwrap();
     let bounds = outlined.px_bounds();
