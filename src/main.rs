@@ -48,7 +48,7 @@ use winit::{
     dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
-    platform::windows::{WindowAttributesExtWindows, WindowExtWindows, CornerPreference},
+    platform::windows::{CornerPreference, WindowAttributesExtWindows, WindowExtWindows},
     raw_window_handle::{HasWindowHandle, RawWindowHandle},
     window::{Window, WindowId, WindowLevel},
 };
@@ -157,24 +157,20 @@ impl App {
             )?;
 
             // 关闭窗口淡入淡出动画
-            if let Ok(handle) = window.window_handle() {
-                if let RawWindowHandle::Win32(win32_handle) = handle.as_raw() {
-                    unsafe {
-                        let hwnd = HWND(win32_handle.hwnd.get() as *mut _);
-                        let corner_preference = 1i32;
-                        let result = windows::Win32::Graphics::Dwm::DwmSetWindowAttribute(
-                            hwnd,
-                            windows::Win32::Graphics::Dwm::DWMWA_TRANSITIONS_FORCEDISABLED,
-                            &corner_preference as *const i32 as *const _,
-                            std::mem::size_of::<i32>() as u32,
-                        );
-                        if result.is_err() {
-                            log::error!(
-                                "Failed to set DWMWA_TRANSITIONS_FORCEDISABLED attribute: {:?}",
-                                result
-                            );
-                        }
-                    }
+            if let Ok(handle) = window.window_handle()
+                && let RawWindowHandle::Win32(win32_handle) = handle.as_raw()
+            {
+                let hwnd = HWND(win32_handle.hwnd.get() as *mut _);
+                let corner_preference = 1i32;
+                if let Err(e) = unsafe {
+                    windows::Win32::Graphics::Dwm::DwmSetWindowAttribute(
+                        hwnd,
+                        windows::Win32::Graphics::Dwm::DWMWA_TRANSITIONS_FORCEDISABLED,
+                        &corner_preference as *const i32 as *const _,
+                        std::mem::size_of::<i32>() as u32,
+                    )
+                } {
+                    log::error!("Failed to set DWMWA_TRANSITIONS_FORCEDISABLED attribute: {e:?}");
                 }
             }
 
@@ -338,13 +334,13 @@ impl ApplicationHandler<UserEvent> for App {
                         window.set_minimized(false);
 
                         if let Some(custom_icon) = &self.custom_icon {
-                            let theme =
-                                self.config.indicator_theme.lock().unwrap().get_theme(
-                                    get_scale_factor(),
-                                    min(window_width, window_height) as f64,
-                                );
+                            let theme = self.config.indicator_theme.lock().unwrap().get_theme(
+                                get_scale_factor(),
+                                min(window_width, window_height) as f64,
+                            );
 
-                            let (icon_buffer, icon_size) = custom_icon.get_icon_date_and_size(theme);
+                            let (icon_buffer, icon_size) =
+                                custom_icon.get_icon_date_and_size(theme);
 
                             render_icon_to_buffer(
                                 &mut buffer,
@@ -360,7 +356,10 @@ impl ApplicationHandler<UserEvent> for App {
                                 .indicator_theme
                                 .lock()
                                 .unwrap()
-                                .get_theme(get_scale_factor(), min(window_width, window_height) as f64)
+                                .get_theme(
+                                    get_scale_factor(),
+                                    min(window_width, window_height) as f64,
+                                )
                                 .get_font_color();
 
                             render_font_to_sufface(&mut buffer, color, window_width, window_height)
@@ -369,7 +368,6 @@ impl ApplicationHandler<UserEvent> for App {
                     }
 
                     buffer.present().expect("Failed to present the buffer");
-
                 } else {
                     self.create_window(event_loop)
                         .expect("Failed to create window");
