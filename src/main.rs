@@ -265,10 +265,40 @@ enum UserEvent {
 
 impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.create_window(event_loop)
-            .expect("Failed to create window");
-        self.listen_capslock();
-        self.auto_hide_window();
+        // 如果窗口已存在，说明是从睡眠/挂起中恢复
+        if self.window.is_some() {
+            log::info!("App resumed from suspension, recreating surface...");
+
+            // 关键：重建 surface 以修复休眠导致的图形上下文丢失
+            if let Some(window) = &self.window {
+                match softbuffer::Context::new(window.clone()) {
+                    Ok(context) => match Surface::new(&context, window.clone()) {
+                        Ok(mut new_surface) => {
+                            let (width, height): (u32, u32) = window.inner_size().into();
+                            if let (Some(w), Some(h)) =
+                                (NonZeroU32::new(width), NonZeroU32::new(height))
+                            {
+                                if new_surface.resize(w, h).is_ok() {
+                                    self.surface = Some(new_surface);
+                                    log::info!("Surface recreated successfully after resume");
+                                }
+                            }
+                        }
+                        Err(e) => log::error!("Failed to recreate surface on resume: {e}"),
+                    },
+                    Err(e) => log::error!("Failed to recreate context on resume: {e}"),
+                }
+            }
+
+            // 强制触发一次重绘
+            let _ = self.event_loop_proxy.send_event(UserEvent::RedrawRequested);
+        } else {
+            // 首次启动
+            self.create_window(event_loop)
+                .expect("Failed to create window");
+            self.listen_capslock();
+            self.auto_hide_window();
+        }
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
