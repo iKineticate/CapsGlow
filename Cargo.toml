@@ -20,7 +20,7 @@ ab_glyph = { version = "0.2.32", default-features = false, features = ["std"] } 
 image = { version = "0.25.10", default-features = false, features = ["ico", "png"] } # 图像处理
 
 
-tray-controls = "0.2.2" # 托盘管理
+tray-controls = "0.2.3" # 托盘管理
 tray-icon = "0.26.1" # 托盘生成
 
 winreg = "0.56.0" # 注册表

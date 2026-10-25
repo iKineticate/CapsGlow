@@ -49,25 +49,25 @@ impl CreateMenuItem {
 
     fn quit(&mut self, text: &str) -> MenuItem {
         let menu_item = MenuItem::with_id(MenuAction::Quit.id(), text, true, None);
-        self.0.register_normal(menu_item.kind());
+        self.0.register(menu_item.kind(), None);
         menu_item
     }
 
     fn about(&mut self, text: &str) -> MenuItem {
         let menu_item = MenuItem::with_id(MenuAction::About.id(), text, true, None);
-        self.0.register_normal(menu_item.kind());
+        self.0.register(menu_item.kind(), None);
         menu_item
     }
 
     fn restart(&mut self, text: &str) -> MenuItem {
         let menu_item = MenuItem::with_id(MenuAction::Restart.id(), text, true, None);
-        self.0.register_normal(menu_item.kind());
+        self.0.register(menu_item.kind(), None);
         menu_item
     }
 
     fn open_config(&mut self, text: &str) -> MenuItem {
         let menu_item = MenuItem::with_id(MenuAction::OpenConfig.id(), text, true, None);
-        self.0.register_normal(menu_item.kind());
+        self.0.register(menu_item.kind(), None);
         menu_item
     }
 
@@ -75,7 +75,7 @@ impl CreateMenuItem {
         let should_startup = get_startup_status()?;
         let check_menu_item =
             CheckMenuItem::with_id(MenuAction::Startup.id(), text, true, should_startup, None);
-        self.0.register_normal(check_menu_item.kind());
+        self.0.register(check_menu_item.kind(), None);
         Ok(check_menu_item)
     }
 

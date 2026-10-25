@@ -109,7 +109,6 @@ pub fn handle_menu_event(
                     }
 
                     config.save();
-
                     drop(config);
 
                     proxy
