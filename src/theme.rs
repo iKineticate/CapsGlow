@@ -138,7 +138,9 @@ impl IndicatorTheme {
             );
 
             let total_brightness: f32 = buffer
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|chunk| {
                     // 注意Windows的GDI返回BGR格式
                     let r = chunk[2] as f32;

@@ -1,130 +1,134 @@
 use super::{MenuGroup, item::*};
 use crate::{
     UserEvent,
-    config::{CONFIG_PATH, Config},
+    config::{CONFIG, CONFIG_PATH},
     startup::set_startup,
+    window::WindowPosition,
 };
 
-use std::process::Command;
-use std::sync::Arc;
+use std::{process::Command, str::FromStr};
 
 use anyhow::{Context, Result, anyhow};
-use tray_controls::{CheckMenuKind, MenuControl};
+use tray_controls::MenuItemMeta;
+use tray_icon::menu::MenuItemKind;
 use winit::event_loop::EventLoopProxy;
 
-pub struct MenuHandler {
-    menu_control: MenuControl<MenuGroup>,
-    config: Arc<Config>,
-    proxy: EventLoopProxy<UserEvent>,
-}
+pub fn handle_menu_event(
+    return_menu_meta: &MenuItemMeta<MenuGroup>,
+    proxy: &EventLoopProxy<UserEvent>,
+) -> Result<()> {
+    let return_menu_group = return_menu_meta.group();
+    let return_menu_kind = return_menu_meta.kind();
+    let return_menu_id = return_menu_kind.id();
 
-impl MenuHandler {
-    pub fn new(
-        menu_control: MenuControl<MenuGroup>,
-        config: Arc<Config>,
-        proxy: EventLoopProxy<UserEvent>,
-    ) -> Self {
-        Self {
-            menu_control,
-            config,
-            proxy,
-        }
-    }
+    match return_menu_group {
+        None => {
+            let menu_action = MenuAction::from_str(return_menu_id.as_ref())
+                .map_err(|e| anyhow!("no match normal menu [{}] - {e}", return_menu_id.0))?;
 
-    pub fn run(&self) -> Result<()> {
-        let id = self.menu_control.id();
-        let config = &self.config;
-        let proxy = &self.proxy;
-
-        let menu_control = &self.menu_control;
-        match menu_control {
-            MenuControl::CheckMenu(check_menu_kind) => match check_menu_kind {
-                CheckMenuKind::Separate(check_menu) => {
-                    if id == &*STARTUP {
-                        set_startup(check_menu.is_checked())
-                    } else {
-                        Err(anyhow!("No match single check menu: {}", id.0))
-                    }
-                }
-                CheckMenuKind::CheckBox(_click_menu, _group) => {
-                    Err(anyhow!("Not support check menu group: {}", id.0))
-                }
-                CheckMenuKind::Radio(checked_mwnu, _, group) => {
-                    match group {
-                        MenuGroup::RadioIndicatorIconTheme => {
-                            let checked_mwnu_id = checked_mwnu.id();
-                            if checked_mwnu_id == &*FOLLOW_INDICATOR_AREA_THEME {
-                                config.set_indicator_indicator_area_theme();
-                            } else if checked_mwnu_id == &*FOLLOW_SYSTEM_THEME {
-                                config.set_indicator_system_theme();
-                            } else {
-                                // ...
-                            }
-
-                            config.save();
-
-                            let _ = proxy
-                                .send_event(UserEvent::RedrawRequested)
-                                .context("Failed to send 'RedrawRequested' event");
-
-                            Ok(())
-                        }
-                        MenuGroup::RadioMonitorSelector => {
-                            if id == &*SELECT_MOUSE_MONITOR {
-                                config.set_mouse_monitor();
-                            } else if id == &*SELECT_PRIMARY_MONITOR {
-                                config.set_primary_monitor();
-                            } else {
-                                // ...
-                            }
-
-                            config.save();
-
-                            let _ = proxy
-                                .send_event(UserEvent::MoveWindow)
-                                .context("Failed to send 'Move Window' event");
-
-                            Ok(())
-                        }
-                        MenuGroup::RadioWindowPosition => {
-                            if let Some((_, position, _)) = WINDOW_POSITIONS
-                                .iter()
-                                .find(|(menu_id, _, _)| menu_id == id)
-                            {
-                                config.set_window_position(position.clone());
-                                config.save();
-
-                                let _ = proxy
-                                    .send_event(UserEvent::MoveWindow)
-                                    .context("Failed to send 'Move Window' event");
-                            }
-                            Ok(())
-                        }
-                    }
-                }
-            },
-            MenuControl::IconMenu(_icon_menu) => Err(anyhow!("None icon menu")),
-            MenuControl::MenuItem(menu_item) => {
-                if menu_item.id() == &*QUIT {
-                    proxy
+            match return_menu_kind {
+                MenuItemKind::MenuItem(_m) => match menu_action {
+                    MenuAction::Quit => proxy
                         .send_event(UserEvent::Exit)
-                        .context("Failed to send 'Exit' event")
-                } else if menu_item.id() == &*ABOUT {
-                    proxy
+                        .context("Failed to send 'Exit' event"),
+                    MenuAction::About => proxy
                         .send_event(UserEvent::ShowAboutDialog)
-                        .context("Failed to send 'Show About Dialog' event")
-                } else if menu_item.id() == &*RESTART {
-                    proxy
+                        .context("Failed to send 'Show About Dialog' event"),
+                    MenuAction::Restart => proxy
                         .send_event(UserEvent::Restart)
-                        .context("Failed to send 'Restart' event")
-                } else if menu_item.id() == &*OPEN_CONFIG {
-                    Command::new("notepad.exe")
+                        .context("Failed to send 'Restart' event"),
+                    MenuAction::OpenConfig => Command::new("notepad.exe")
                         .arg(&*CONFIG_PATH)
                         .spawn()
                         .map(|_| ())
-                        .context("Failed to open config file")
-                } else {
-                    Err(anyhow!("No match normal menu: {}", id.0))
+                        .context("Failed to open config file"),
+                    _ => Err(anyhow!("No match normal menu: {menu_action:?}")),
+                },
+                MenuItemKind::Check(menu) => {
+                    let check_state = menu.is_checked();
+
+                    match menu_action {
+                        MenuAction::Startup => set_startup(check_state),
+                        _ => Err(anyhow!("No match single check menu: {menu_action:?}")),
+                    }
+                }
+                _ => Err(anyhow!("Unsupported menu kind: {menu_action:?}")),
+            }
+        }
+        Some(group) => {
+            // let return_menu = return_menu_kind
+            //     .as_check_menuitem()
+            //     .ok_or_else(|| anyhow!("Menu is not a check menu: {menu_action:?}"))?;
+
+            // let return_menu_state = return_menu.is_checked();
+
+            let mut config = CONFIG.write().unwrap();
+
+            match group {
+                MenuGroup::RadioIndicatorIconTheme => {
+                    let select_menu_action = MenuAction::from_str(return_menu_id.as_ref())
+                        .map_err(|e| anyhow!("no match radio menu [{}] - {e}", return_menu_id.0))?;
+
+                    match select_menu_action {
+                        MenuAction::FollowIndicatorAreaTheme => {
+                            config.set_indicator_indicator_area_theme();
+                        }
+                        MenuAction::FollowSystemTheme => {
+                            config.set_indicator_system_theme();
+                        }
+                        _ => {
+                            return Err(anyhow!(
+                                "No match set tray icon style menu: {select_menu_action:?}"
+                            ));
+                        }
+                    }
+
+                    config.save();
+                    drop(config);
+
+                    proxy
+                        .send_event(UserEvent::RedrawRequested)
+                        .context("Failed to send 'RedrawRequested' event")
+                }
+                MenuGroup::RadioMonitorSelector => {
+                    let select_menu_action = MenuAction::from_str(return_menu_id.as_ref())
+                        .map_err(|e| anyhow!("no match radio menu [{}] - {e}", return_menu_id.0))?;
+
+                    match select_menu_action {
+                        MenuAction::SelectMouseMonitor => {
+                            config.set_mouse_monitor();
+                        }
+                        MenuAction::SelectPrimaryMonitor => {
+                            config.set_primary_monitor();
+                        }
+                        _ => {
+                            return Err(anyhow!(
+                                "No match set monitor selector menu: {select_menu_action:?}"
+                            ));
+                        }
+                    }
+
+                    config.save();
+
+                    drop(config);
+
+                    proxy
+                        .send_event(UserEvent::MoveWindow)
+                        .context("Failed to send 'Move Window' event")
+                }
+                MenuGroup::RadioWindowPosition => {
+                    let window_position = WindowPosition::from_str(
+                        return_menu_id.as_ref().trim_start_matches("position_"),
+                    )
+                    .map_err(|e| anyhow!("no match radio menu [{}] - {e}", return_menu_id.0))?;
+
+                    config.set_window_position(window_position);
+                    config.save();
+                    drop(config);
+
+                    proxy
+                        .send_event(UserEvent::MoveWindow)
+                        .context("Failed to send 'Move Window' event")
                 }
             }
         }

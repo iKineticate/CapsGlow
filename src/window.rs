@@ -51,8 +51,24 @@ impl WindowSetting {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+use strum::{AsRefStr, EnumIter, EnumString};
+
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Eq,
+    Hash,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    AsRefStr,
+    EnumIter,
+    EnumString,
+)]
+#[strum(prefix = "position_", serialize_all = "snake_case")]
 pub enum WindowPosition {
+    #[default]
     Center,
     Left,
     Right,

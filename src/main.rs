@@ -27,13 +27,13 @@ use std::{
 };
 
 use crate::{
-    config::{Config, EXE_PATH, WINDOW_LOGICAL_SIZE},
+    config::{CONFIG, Config, EXE_PATH, WINDOW_LOGICAL_SIZE},
     icon::{CustomIcon, load_icon_for_window, render_font_to_sufface, render_icon_to_buffer},
     monitor::get_scale_factor,
     single_instance::SingleInstance,
     tray::{
         create_tray,
-        menu::{MenuGroup, about, handler::MenuHandler},
+        menu::{MenuGroup, about, handler::handle_menu_event},
     },
     uiaccess::prepare_uiaccess_token,
 };
@@ -41,7 +41,7 @@ use crate::{
 use anyhow::{Context, Result, anyhow};
 use log::error;
 use softbuffer::Surface;
-use tray_controls::MenuManager;
+use tray_controls::MenuRegistry;
 use tray_icon::{TrayIcon, menu::MenuEvent};
 use windows::Win32::{Foundation::HWND, UI::Input::KeyboardAndMouse::GetKeyState};
 use winit::{
@@ -80,11 +80,10 @@ fn main() -> Result<()> {
 
 struct App {
     close_window_time: Arc<AtomicU64>,
-    config: Arc<Config>,
     exit_threads: Arc<AtomicBool>,
     event_loop_proxy: EventLoopProxy<UserEvent>,
     custom_icon: Option<CustomIcon>,
-    menu_manager: Mutex<MenuManager<MenuGroup>>,
+    menu_registry: MenuRegistry<MenuGroup>,
     show_indicator: Arc<AtomicBool>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
     tray: Mutex<TrayIcon>,
@@ -97,8 +96,8 @@ impl App {
     fn new(event_loop_proxy: EventLoopProxy<UserEvent>) -> Self {
         let config = Config::open().expect("Failed to open config");
 
-        let mut menu_manager = MenuManager::new();
-        let tray = create_tray(&config, &mut menu_manager).expect("Failed to create tray");
+        let mut menu_registry: MenuRegistry<MenuGroup> = MenuRegistry::new();
+        let tray = create_tray(&config, &mut menu_registry).expect("Failed to create tray");
 
         let custom_icon = CustomIcon::find_custom_icon();
 
@@ -113,11 +112,10 @@ impl App {
 
         Self {
             close_window_time: Arc::new(AtomicU64::new(0)),
-            config: Arc::new(config),
             exit_threads: Arc::new(AtomicBool::new(false)),
             event_loop_proxy,
             custom_icon,
-            menu_manager: Mutex::new(menu_manager),
+            menu_registry,
             show_indicator: Arc::new(AtomicBool::new(false)),
             surface: None,
             tray: Mutex::new(tray),
@@ -132,11 +130,10 @@ impl App {
             return Ok(());
         }
 
-        let window_phy_position = self
-            .config
-            .window_setting
-            .lock()
+        let window_phy_position = CONFIG
+            .read()
             .unwrap()
+            .window_setting
             .get_phy_position(self.window_phy_width, self.window_phy_height)?;
 
         let window_size = PhysicalSize::new(self.window_phy_width, self.window_phy_height);
@@ -277,11 +274,10 @@ impl ApplicationHandler<UserEvent> for App {
                             let (width, height): (u32, u32) = window.inner_size().into();
                             if let (Some(w), Some(h)) =
                                 (NonZeroU32::new(width), NonZeroU32::new(height))
+                                && new_surface.resize(w, h).is_ok()
                             {
-                                if new_surface.resize(w, h).is_ok() {
-                                    self.surface = Some(new_surface);
-                                    log::info!("Surface recreated successfully after resume");
-                                }
+                                self.surface = Some(new_surface);
+                                log::info!("Surface recreated successfully after resume");
                             }
                         }
                         Err(e) => log::error!("Failed to recreate surface on resume: {e}"),
@@ -327,30 +323,22 @@ impl ApplicationHandler<UserEvent> for App {
                 event_loop.exit();
             }
             UserEvent::MenuEvent(event) => {
-                let mut menu_manager = self.menu_manager.lock().unwrap();
-                menu_manager.update(event.id(), |menu_control| {
-                    let Some(menu_control) = menu_control else {
-                        error!("Failed to get menu control");
-                        return;
-                    };
-
-                    let menu_handlers = MenuHandler::new(
-                        menu_control.clone(),
-                        Arc::clone(&self.config),
-                        self.event_loop_proxy.clone(),
-                    );
-
-                    if let Err(e) = menu_handlers.run() {
-                        error!("Failed to handle menu event: {e}")
-                    }
-                });
+                if let Err(e) = self
+                    .menu_registry
+                    .handle_event(event.id())
+                    .map_err(|e| anyhow!("{e}"))
+                    .and_then(|menu_meta| handle_menu_event(menu_meta, &self.event_loop_proxy))
+                {
+                    error!("Failed to handle menu event: {e}");
+                }
             }
             UserEvent::MoveWindow => {
                 if let Some(window) = self.window.as_ref() {
                     let (window_width, window_height): (u32, u32) = window.inner_size().into();
 
-                    let window_phy_position = self
-                        .config
+                    let window_phy_position = CONFIG
+                        .read()
+                        .unwrap()
                         .get_window_phy_position(window_width, window_height)
                         .expect("Failed to get window physical position");
 
@@ -373,7 +361,7 @@ impl ApplicationHandler<UserEvent> for App {
                         window.set_minimized(false);
 
                         if let Some(custom_icon) = &self.custom_icon {
-                            let theme = self.config.indicator_theme.lock().unwrap().get_theme(
+                            let theme = CONFIG.read().unwrap().indicator_theme.get_theme(
                                 get_scale_factor(),
                                 min(window_width, window_height) as f64,
                             );
@@ -390,11 +378,10 @@ impl ApplicationHandler<UserEvent> for App {
                             )
                             .expect("Failed to render icon to surface");
                         } else {
-                            let color = self
-                                .config
-                                .indicator_theme
-                                .lock()
+                            let color = CONFIG
+                                .read()
                                 .unwrap()
+                                .indicator_theme
                                 .get_theme(
                                     get_scale_factor(),
                                     min(window_width, window_height) as f64,

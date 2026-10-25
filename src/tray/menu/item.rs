@@ -3,87 +3,44 @@ use crate::language::LOC;
 use crate::startup::get_startup_status;
 use crate::{config::Config, window::WindowPosition};
 
-use std::rc::Rc;
-use std::sync::LazyLock;
-
 use anyhow::{Context, Result};
-use tray_controls::{CheckMenuKind, MenuControl, MenuManager};
+use strum::{AsRefStr, EnumString, IntoEnumIterator};
+use tray_controls::MenuRegistry;
 use tray_icon::menu::{
     CheckMenuItem, IsMenuItem, Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu,
 };
 
-pub static QUIT: LazyLock<MenuId> = LazyLock::new(|| MenuId::new("quit")); // Normal
-pub static ABOUT: LazyLock<MenuId> = LazyLock::new(|| MenuId::new("about")); // Normal
-pub static RESTART: LazyLock<MenuId> = LazyLock::new(|| MenuId::new("restart")); // Normal
-pub static STARTUP: LazyLock<MenuId> = LazyLock::new(|| MenuId::new("startup")); // CheckSingle
-// Normal
-pub static OPEN_CONFIG: LazyLock<MenuId> = LazyLock::new(|| MenuId::new("open_config"));
-// Indicator Theme: Radio
-pub static FOLLOW_INDICATOR_AREA_THEME: LazyLock<MenuId> =
-    LazyLock::new(|| MenuId::new("follow_indicator_area_theme"));
-pub static FOLLOW_SYSTEM_THEME: LazyLock<MenuId> =
-    LazyLock::new(|| MenuId::new("follow_system_theme"));
-// Monitor Radio: Radio
-pub static SELECT_MOUSE_MONITOR: LazyLock<MenuId> =
-    LazyLock::new(|| MenuId::new("select_mouse_monitor"));
-pub static SELECT_PRIMARY_MONITOR: LazyLock<MenuId> =
-    LazyLock::new(|| MenuId::new("select_primary_monitor"));
-// Window Position: Radio
-pub static WINDOW_POSITIONS: LazyLock<[(MenuId, WindowPosition, &str); 9]> = LazyLock::new(|| {
-    [
-        (
-            MenuId::new("position_center"),
-            WindowPosition::Center,
-            LOC.position_center,
-        ),
-        (
-            MenuId::new("position_left"),
-            WindowPosition::Left,
-            LOC.position_left,
-        ),
-        (
-            MenuId::new("position_right"),
-            WindowPosition::Right,
-            LOC.position_right,
-        ),
-        (
-            MenuId::new("position_top"),
-            WindowPosition::Top,
-            LOC.position_top,
-        ),
-        (
-            MenuId::new("position_bottom"),
-            WindowPosition::Bottom,
-            LOC.position_bottom,
-        ),
-        (
-            MenuId::new("position_top_left"),
-            WindowPosition::TopLeft,
-            LOC.position_top_left,
-        ),
-        (
-            MenuId::new("position_top_right"),
-            WindowPosition::TopRight,
-            LOC.position_top_right,
-        ),
-        (
-            MenuId::new("position_bottom_left"),
-            WindowPosition::BottomLeft,
-            LOC.position_bottom_left,
-        ),
-        (
-            MenuId::new("position_bottom_right"),
-            WindowPosition::BottomRight,
-            LOC.position_bottom_right,
-        ),
-    ]
-});
+#[derive(Debug, Clone, Eq, Hash, PartialEq, AsRefStr, EnumString)]
+#[strum(serialize_all = "snake_case")]
+pub enum MenuAction {
+    // Normal
+    Quit,
+    About,
+    Restart,
+    OpenConfig,
+    // CheckSingle
+    Startup,
+    // Radio
+    FollowIndicatorAreaTheme,
+    FollowSystemTheme,
+    // Radio
+    SelectMouseMonitor,
+    SelectPrimaryMonitor,
+    // 注意 WindowPosition 在 window.rs 中已经实现了 AsRefStr 和 EnumString
+    // WindowPosition,
+}
 
-struct CreateMenuItem(MenuManager<MenuGroup>);
+impl MenuAction {
+    pub fn id(&self) -> MenuId {
+        MenuId::new(self.as_ref())
+    }
+}
+
+struct CreateMenuItem(MenuRegistry<MenuGroup>);
 
 impl CreateMenuItem {
     fn new() -> Self {
-        Self(MenuManager::new())
+        Self(MenuRegistry::<MenuGroup>::new())
     }
 
     fn separator() -> PredefinedMenuItem {
@@ -91,104 +48,99 @@ impl CreateMenuItem {
     }
 
     fn quit(&mut self, text: &str) -> MenuItem {
-        let menu_item = MenuItem::with_id(QUIT.clone(), text, true, None);
-        self.0.insert(MenuControl::MenuItem(menu_item.clone()));
+        let menu_item = MenuItem::with_id(MenuAction::Quit.id(), text, true, None);
+        self.0.register_normal(menu_item.kind());
         menu_item
     }
 
     fn about(&mut self, text: &str) -> MenuItem {
-        let menu_item = MenuItem::with_id(ABOUT.clone(), text, true, None);
-        self.0.insert(MenuControl::MenuItem(menu_item.clone()));
+        let menu_item = MenuItem::with_id(MenuAction::About.id(), text, true, None);
+        self.0.register_normal(menu_item.kind());
         menu_item
     }
 
     fn restart(&mut self, text: &str) -> MenuItem {
-        let menu_item = MenuItem::with_id(RESTART.clone(), text, true, None);
-        self.0.insert(MenuControl::MenuItem(menu_item.clone()));
+        let menu_item = MenuItem::with_id(MenuAction::Restart.id(), text, true, None);
+        self.0.register_normal(menu_item.kind());
         menu_item
     }
 
     fn open_config(&mut self, text: &str) -> MenuItem {
-        let menu_item = MenuItem::with_id(OPEN_CONFIG.clone(), text, true, None);
-        self.0.insert(MenuControl::MenuItem(menu_item.clone()));
+        let menu_item = MenuItem::with_id(MenuAction::OpenConfig.id(), text, true, None);
+        self.0.register_normal(menu_item.kind());
         menu_item
     }
 
     fn startup(&mut self, text: &str) -> Result<CheckMenuItem> {
         let should_startup = get_startup_status()?;
-        let menu_id = STARTUP.clone();
         let check_menu_item =
-            CheckMenuItem::with_id(menu_id.clone(), text, true, should_startup, None);
-        self.0
-            .insert(MenuControl::CheckMenu(CheckMenuKind::Separate(Rc::new(
-                check_menu_item.clone(),
-            ))));
+            CheckMenuItem::with_id(MenuAction::Startup.id(), text, true, should_startup, None);
+        self.0.register_normal(check_menu_item.kind());
         Ok(check_menu_item)
     }
 
     fn indicator_theme(&mut self, config: &Config) -> Result<Submenu> {
-        let menu_follow_indicator_area_theme = CheckMenuItem::with_id(
-            FOLLOW_INDICATOR_AREA_THEME.clone(),
-            LOC.follow_indicator_area_theme,
-            true,
-            config.is_indicator_indicator_area_theme(),
-            None,
-        );
+        let menu_radio_items = [
+            (
+                MenuAction::FollowIndicatorAreaTheme,
+                config.is_indicator_indicator_area_theme(),
+            ),
+            (
+                MenuAction::FollowSystemTheme,
+                config.is_indicator_system_theme(),
+            ),
+        ]
+        .into_iter()
+        .map(|(menu_action, checked)| {
+            let menu_id = menu_action.id();
+            let text = LOC.get(menu_action.as_ref()).unwrap_or("unknown");
+            let menu = CheckMenuItem::with_id(menu_id, text, true, checked, None);
 
-        let menu_follow_system_theme = CheckMenuItem::with_id(
-            FOLLOW_SYSTEM_THEME.clone(),
-            LOC.follow_system_theme,
-            true,
-            config.is_indicator_system_theme(),
-            None,
-        );
+            self.0.register_radio(
+                menu.kind(),
+                MenuGroup::RadioIndicatorIconTheme,
+                Some(MenuAction::FollowIndicatorAreaTheme.id()),
+            );
 
-        self.0.insert(MenuControl::CheckMenu(CheckMenuKind::Radio(
-            Rc::new(menu_follow_indicator_area_theme.clone()),
-            Some(Rc::new(FOLLOW_INDICATOR_AREA_THEME.clone())),
-            MenuGroup::RadioIndicatorIconTheme,
-        )));
+            menu
+        })
+        .collect::<Vec<CheckMenuItem>>();
 
-        self.0.insert(MenuControl::CheckMenu(CheckMenuKind::Radio(
-            Rc::new(menu_follow_system_theme.clone()),
-            Some(Rc::new(FOLLOW_INDICATOR_AREA_THEME.clone())),
-            MenuGroup::RadioIndicatorIconTheme,
-        )));
+        let menu_tray_icon_style: Vec<&dyn IsMenuItem> = menu_radio_items
+            .iter()
+            .map(|item| item as &dyn IsMenuItem)
+            .collect();
 
-        Submenu::with_items(
-            LOC.theme,
-            true,
-            &[
-                &menu_follow_indicator_area_theme as &dyn IsMenuItem,
-                &menu_follow_system_theme as &dyn IsMenuItem,
-            ],
-        )
-        .context("Failed to apped 'Indicator Theme' to Tray Menu")
+        Submenu::with_items(LOC.theme, true, &menu_tray_icon_style)
+            .context("Failed to apped 'Indicator Theme' to Tray Menu")
     }
 
     fn window_postion(&mut self, config: &Config) -> Result<Submenu> {
-        let position_check_items = WINDOW_POSITIONS
-            .iter()
-            .map(|(menu_id, position, text)| {
-                let check_menu_item = CheckMenuItem::with_id(
-                    menu_id.clone(),
+        let menu_radio_items = WindowPosition::iter()
+            .map(|position| {
+                let menu_id = MenuId::new(position.as_ref());
+
+                let text = LOC.get(position.as_ref()).unwrap_or("unknown");
+
+                let menu = CheckMenuItem::with_id(
+                    menu_id,
                     text,
                     true,
-                    config.get_window_position() == *position,
+                    config.get_window_position() == position,
                     None,
                 );
 
-                self.0.insert(MenuControl::CheckMenu(CheckMenuKind::Radio(
-                    Rc::new(check_menu_item.clone()),
-                    Some(Rc::new(FOLLOW_INDICATOR_AREA_THEME.clone())),
+                self.0.register_radio(
+                    menu.kind(),
                     MenuGroup::RadioWindowPosition,
-                )));
+                    Some(MenuId(WindowPosition::Center.as_ref().to_string())),
+                );
 
-                check_menu_item
+                menu
             })
             .collect::<Vec<CheckMenuItem>>();
 
-        let position_check_refs: Vec<&dyn IsMenuItem> = position_check_items
+        let position_check_refs: Vec<&dyn IsMenuItem> = menu_radio_items
             .iter()
             .map(|item| item as &dyn IsMenuItem)
             .collect();
@@ -198,45 +150,43 @@ impl CreateMenuItem {
     }
 
     fn select_monitor(&mut self, config: &Config) -> Result<Submenu> {
-        let menu_select_primary_monitor = CheckMenuItem::with_id(
-            SELECT_PRIMARY_MONITOR.clone(),
-            LOC.select_primary_monitor,
-            true,
-            config.is_primary_monitor(),
-            None,
-        );
+        let menu_radio_items = [
+            (
+                MenuAction::SelectPrimaryMonitor,
+                config.is_primary_monitor(),
+            ),
+            (MenuAction::SelectMouseMonitor, config.is_mouse_monitor()),
+        ]
+        .into_iter()
+        .map(|(menu_action, checked)| {
+            let menu_id = menu_action.id();
+            let text = LOC.get(menu_action.as_ref()).unwrap_or("unknown");
 
-        let menu_select_mouse_monitor = CheckMenuItem::with_id(
-            SELECT_MOUSE_MONITOR.clone(),
-            LOC.select_mouse_monitor,
-            true,
-            config.is_mouse_monitor(),
-            None,
-        );
-        self.0.insert(MenuControl::CheckMenu(CheckMenuKind::Radio(
-            Rc::new(menu_select_primary_monitor.clone()),
-            Some(Rc::new(SELECT_MOUSE_MONITOR.clone())),
-            MenuGroup::RadioMonitorSelector,
-        )));
-        self.0.insert(MenuControl::CheckMenu(CheckMenuKind::Radio(
-            Rc::new(menu_select_mouse_monitor.clone()),
-            Some(Rc::new(SELECT_MOUSE_MONITOR.clone())),
-            MenuGroup::RadioMonitorSelector,
-        )));
+            let menu = CheckMenuItem::with_id(menu_id, text, true, checked, None);
+
+            self.0.register_radio(
+                menu.kind(),
+                MenuGroup::RadioMonitorSelector,
+                Some(MenuAction::SelectPrimaryMonitor.id()),
+            );
+
+            menu
+        })
+        .collect::<Vec<CheckMenuItem>>();
 
         Submenu::with_items(
             LOC.select_monitor,
             true,
             &[
-                &menu_select_primary_monitor as &dyn IsMenuItem,
-                &menu_select_mouse_monitor as &dyn IsMenuItem,
+                &menu_radio_items[0] as &dyn IsMenuItem,
+                &menu_radio_items[1] as &dyn IsMenuItem,
             ],
         )
         .context("Failed to apped 'Select Monitor' to Tray Menu")
     }
 }
 
-pub fn create_menu(config: &Config, menu_manager: &mut MenuManager<MenuGroup>) -> Result<Menu> {
+pub fn create_menu(config: &Config, menu_manager: &mut MenuRegistry<MenuGroup>) -> Result<Menu> {
     let menu_separator = CreateMenuItem::separator();
 
     let mut create_menu_item = CreateMenuItem::new();

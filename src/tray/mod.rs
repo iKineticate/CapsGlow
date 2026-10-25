@@ -7,14 +7,14 @@ use crate::{
 };
 
 use anyhow::{Result, anyhow};
-use tray_controls::MenuManager;
+use tray_controls::MenuRegistry;
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
 #[rustfmt::skip]
-pub fn create_tray(config: &Config, menu_manager: &mut MenuManager<MenuGroup>,) -> Result<TrayIcon> {
+pub fn create_tray(config: &Config, menu_registry: &mut MenuRegistry<MenuGroup>,) -> Result<TrayIcon> {
     let icon = load_icon_for_tray()?;
 
-    let tray_menu = create_menu(config, menu_manager).map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
+    let tray_menu = create_menu(config, menu_registry).map_err(|e| anyhow!("Failed to create menu. - {e}"))?;
 
     let tray_icon = TrayIconBuilder::new()
         .with_menu_on_left_click(true)
