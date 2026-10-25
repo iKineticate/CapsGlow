@@ -8,26 +8,27 @@ license = "MIT License"
 repository = "https://github.com/iKineticate/CapsGlow"
 
 [dependencies]
-# 错误处理
-anyhow = "1.0.100"
-# 日志
-log = { version = "0.4.29", features = ["release_max_level_off"] }
-env_logger = { version = "0.11.8", default-features = false, features = ["auto-color", "humantime"] }
-# 窗口
-winit = "0.30.12"
+anyhow = "1.0.104"
+
+log = { version = "0.4.34", features = ["release_max_level_off"] }
+env_logger = { version = "0.11.11", default-features = false, features = ["auto-color", "humantime"] }
+
+winit = "0.30.13"
 softbuffer = "0.4.8"
-# 字体渲染
-ab_glyph = { version = "0.2.32", default-features = false, features = ["std"] }
-# 图像处理
-image = { version = "0.25.9", default-features = false, features = ["ico", "png"] }
-# 托盘
-tray-controls = "0.1.2"
-tray-icon = "0.21.2"
-# 注册表
-winreg = "0.55.0"
-# 配置
-toml = "0.9.10"
-serde= { version = "1.0.228", features = ["derive"] }
+
+ab_glyph = { version = "0.2.32", default-features = false, features = ["std"] } # 字体渲染
+image = { version = "0.25.10", default-features = false, features = ["ico", "png"] } # 图像处理
+
+
+tray-controls = "0.2.2" # 托盘管理
+tray-icon = "0.26.1" # 托盘生成
+
+winreg = "0.56.0" # 注册表
+
+toml = "1.1.8+spec-1.1.0"
+serde= { version = "1.0.229", features = ["derive"] }
+
+strum = { version = "0.28.0", features = ["derive"] } # 枚举库：枚举转字符、迭代器
 
 [dependencies.windows]
 version = "0.62.2"
@@ -51,7 +52,7 @@ features = [
 ]
 
 [build-dependencies]
-embed-resource = "3.0.6"
+embed-resource = "3.0.12"
 
 [profile.release]
 lto = "fat"
