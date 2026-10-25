@@ -2,11 +2,11 @@ use std::sync::LazyLock;
 
 pub static LOC: LazyLock<&Localization> = LazyLock::new(|| {
     let language = Language::get_system_language();
-    Localization::get(language)
+    Localization::new(language)
 });
 
 impl Localization {
-    fn get(language: Language) -> &'static Self {
+    fn new(language: Language) -> &'static Self {
         match language {
             Language::Arabic_SaudiArabia => &AR_SA,
             Language::Chinese_HongKongSAR => &ZH_HANT,
@@ -22,6 +22,31 @@ impl Localization {
             _ => &EN_US,
         }
     }
+}
+
+macro_rules! impl_localization_get {
+    ($($field:ident),* $(,)?) => {
+        impl Localization {
+            /// 用字段名（字符串）获取对应文案
+            pub fn get(&self, key: &str) -> Option<&'static str> {
+                match key {
+                    $(stringify!($field) => Some(self.$field),)*
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
+impl_localization_get! {
+    quit, about, restart, startup,
+    open_config,
+    version, author, website, open_github, view_updates, cancel,
+    theme, follow_system_theme, follow_indicator_area_theme,
+    position, position_center, position_left, position_right,
+    position_top, position_bottom, position_top_left, position_top_right,
+    position_bottom_left, position_bottom_right,
+    select_monitor, select_primary_monitor, select_mouse_monitor,
 }
 
 pub struct Localization {
