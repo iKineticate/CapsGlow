@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{LazyLock, RwLock};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,9 @@ use crate::theme::IndicatorTheme;
 use crate::window::{WindowPosition, WindowSetting};
 
 pub const WINDOW_LOGICAL_SIZE: f64 = 200.0;
+
+pub static CONFIG: LazyLock<RwLock<Config>> =
+    LazyLock::new(|| RwLock::new(Config::open().expect("Failed to open config")));
 
 pub static EXE_PATH: LazyLock<PathBuf> =
     LazyLock::new(|| std::env::current_exe().expect("Failed to get CapsGlow.exe path"));
@@ -32,19 +35,10 @@ pub static EXE_NAME: LazyLock<String> = LazyLock::new(|| {
 pub static CONFIG_PATH: LazyLock<PathBuf> =
     LazyLock::new(|| EXE_PATH.with_file_name("CapsGlow.toml"));
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub window_setting: Mutex<WindowSetting>,
-    pub indicator_theme: Mutex<IndicatorTheme>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            window_setting: Mutex::new(WindowSetting::default()),
-            indicator_theme: Mutex::new(IndicatorTheme::default()),
-        }
-    }
+    pub window_setting: WindowSetting,
+    pub indicator_theme: IndicatorTheme,
 }
 
 impl Config {
@@ -76,34 +70,28 @@ impl Config {
 impl Config {
     pub fn is_primary_monitor(&self) -> bool {
         matches!(
-            self.window_setting.lock().unwrap().monitor_selector,
+            self.window_setting.monitor_selector,
             MonitorSelector::PrimaryMonitor
         )
     }
 
     pub fn is_mouse_monitor(&self) -> bool {
         matches!(
-            self.window_setting.lock().unwrap().monitor_selector,
+            self.window_setting.monitor_selector,
             MonitorSelector::MouseMonitor
         )
     }
 
     pub fn is_indicator_system_theme(&self) -> bool {
-        matches!(
-            *self.indicator_theme.lock().unwrap(),
-            IndicatorTheme::System
-        )
+        matches!(self.indicator_theme, IndicatorTheme::System)
     }
 
     pub fn is_indicator_indicator_area_theme(&self) -> bool {
-        matches!(
-            *self.indicator_theme.lock().unwrap(),
-            IndicatorTheme::IndicatorArea
-        )
+        matches!(self.indicator_theme, IndicatorTheme::IndicatorArea)
     }
 
     pub fn get_window_position(&self) -> WindowPosition {
-        self.window_setting.lock().unwrap().position.clone()
+        self.window_setting.position.clone()
     }
 
     pub fn get_window_phy_position(
@@ -112,34 +100,28 @@ impl Config {
         window_phy_height: u32,
     ) -> Result<PhysicalPosition<i32>> {
         self.window_setting
-            .lock()
-            .unwrap()
             .get_phy_position(window_phy_width, window_phy_height)
     }
 }
 
 impl Config {
-    pub fn set_primary_monitor(&self) {
-        self.window_setting.lock().unwrap().monitor_selector = MonitorSelector::PrimaryMonitor;
+    pub fn set_primary_monitor(&mut self) {
+        self.window_setting.monitor_selector = MonitorSelector::PrimaryMonitor;
     }
 
-    pub fn set_mouse_monitor(&self) {
-        self.window_setting.lock().unwrap().monitor_selector = MonitorSelector::MouseMonitor;
+    pub fn set_mouse_monitor(&mut self) {
+        self.window_setting.monitor_selector = MonitorSelector::MouseMonitor;
     }
 
-    pub fn set_indicator_system_theme(&self) {
-        *self.indicator_theme.lock().unwrap() = IndicatorTheme::System;
+    pub fn set_indicator_system_theme(&mut self) {
+        self.indicator_theme = IndicatorTheme::System;
     }
 
-    pub fn set_indicator_indicator_area_theme(&self) {
-        *self.indicator_theme.lock().unwrap() = IndicatorTheme::IndicatorArea;
+    pub fn set_indicator_indicator_area_theme(&mut self) {
+        self.indicator_theme = IndicatorTheme::IndicatorArea;
     }
 
-    pub fn set_window_position(&self, position: WindowPosition) {
-        let mut window_setting = self.window_setting.lock().unwrap();
-        *window_setting = WindowSetting {
-            position,
-            monitor_selector: window_setting.monitor_selector.clone(),
-        };
+    pub fn set_window_position(&mut self, position: WindowPosition) {
+        self.window_setting.position = position;
     }
 }
