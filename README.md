@@ -37,7 +37,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
         1. 在软件目录中放入指定名称的PNG图标   
                 Place the specified icon in the software directory   
         2. 默认图标 / Default icon: `capslock.png`  
-        3. 主题图标 / Theme icon: `capslock_dark.png` + `capslock_light.png`
+        3. 主题图标 / Theme icon: `capslock-dark.png` + `capslock-light.png`
 
 ---
 - **以管理员权限启动时，窗口置顶优先级更高（可覆盖开始菜单）   

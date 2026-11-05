@@ -2,17 +2,29 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use winit::dpi::PhysicalPosition;
 
-use crate::monitor::MonitorSelector;
+use crate::monitor::{MonitorSelector, get_scale_factor};
+
+pub const WINDOW_LOGICAL_SIZE: f64 = 200.0;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WindowSetting {
+    pub phy_width: u32,
+    pub phy_height: u32,
     pub position: WindowPosition,
     pub monitor_selector: MonitorSelector,
 }
 
 impl Default for WindowSetting {
     fn default() -> Self {
+        let (window_phy_width, window_phy_height) = {
+            let scale = get_scale_factor();
+            let size = (WINDOW_LOGICAL_SIZE * scale).round() as u32;
+            (size, size)
+        };
+
         Self {
+            phy_width: window_phy_width,
+            phy_height: window_phy_height,
             position: WindowPosition::Center,
             monitor_selector: MonitorSelector::MouseMonitor,
         }
@@ -20,14 +32,10 @@ impl Default for WindowSetting {
 }
 
 impl WindowSetting {
-    pub fn get_phy_position(
-        &self,
-        window_phy_width: u32,
-        window_phy_height: u32,
-    ) -> Result<PhysicalPosition<i32>> {
+    pub fn get_phy_position(&self) -> Result<PhysicalPosition<i32>> {
         let rect = self.monitor_selector.get_target_monitor_phy_rect()?;
         let (m_left, m_right, m_top, m_bottom) = (rect.left, rect.right, rect.top, rect.bottom);
-        let (w_width, w_height) = (window_phy_width as i32, window_phy_height as i32);
+        let (w_width, w_height) = (self.phy_width as i32, self.phy_height as i32);
         let position = &self.position;
 
         let (x, y) = match position {

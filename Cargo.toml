@@ -13,20 +13,19 @@ anyhow = "1.0.104"
 log = { version = "0.4.34", features = ["release_max_level_off"] }
 env_logger = { version = "0.11.11", default-features = false, features = ["auto-color", "humantime"] }
 
+toml = "1.1.8"
+serde= { version = "1.0.229", features = ["derive"] }
+
 winit = "0.30.13"
 softbuffer = "0.4.8"
 
 ab_glyph = { version = "0.2.32", default-features = false, features = ["std"] } # 字体渲染
-image = { version = "0.25.10", default-features = false, features = ["ico", "png"] } # 图像处理
-
+image = "0.25.10" # 图像处理
 
 tray-controls = "0.2.3" # 托盘管理
 tray-icon = "0.26.1" # 托盘生成
 
 winreg = "0.56.0" # 注册表
-
-toml = "1.1.8+spec-1.1.0"
-serde= { version = "1.0.229", features = ["derive"] }
 
 strum = { version = "0.28.0", features = ["derive"] } # 枚举库：枚举转字符、迭代器
 
@@ -37,6 +36,7 @@ features = [
     "Win32_Globalization",
     "Win32_Graphics_Dwm",
     "Win32_Graphics_Gdi",
+    "Win32_Graphics_DirectWrite",
     "Win32_System_Registry",
     "Win32_UI_Controls",
     "Win32_UI_Input_KeyboardAndMouse",

@@ -1,7 +1,8 @@
 use super::MenuGroup;
+use crate::config::CONFIG;
 use crate::language::LOC;
 use crate::startup::get_startup_status;
-use crate::{config::Config, window::WindowPosition};
+use crate::window::WindowPosition;
 
 use anyhow::{Context, Result};
 use strum::{AsRefStr, EnumString, IntoEnumIterator};
@@ -47,39 +48,46 @@ impl CreateMenuItem {
         PredefinedMenuItem::separator()
     }
 
-    fn quit(&mut self, text: &str) -> MenuItem {
-        let menu_item = MenuItem::with_id(MenuAction::Quit.id(), text, true, None);
+    fn quit(&mut self) -> MenuItem {
+        let menu_item = MenuItem::with_id(MenuAction::Quit.id(), LOC.quit, true, None);
         self.0.register(menu_item.kind(), None);
         menu_item
     }
 
-    fn about(&mut self, text: &str) -> MenuItem {
-        let menu_item = MenuItem::with_id(MenuAction::About.id(), text, true, None);
+    fn about(&mut self) -> MenuItem {
+        let menu_item = MenuItem::with_id(MenuAction::About.id(), LOC.about, true, None);
         self.0.register(menu_item.kind(), None);
         menu_item
     }
 
-    fn restart(&mut self, text: &str) -> MenuItem {
-        let menu_item = MenuItem::with_id(MenuAction::Restart.id(), text, true, None);
+    fn restart(&mut self) -> MenuItem {
+        let menu_item = MenuItem::with_id(MenuAction::Restart.id(), LOC.restart, true, None);
         self.0.register(menu_item.kind(), None);
         menu_item
     }
 
-    fn open_config(&mut self, text: &str) -> MenuItem {
-        let menu_item = MenuItem::with_id(MenuAction::OpenConfig.id(), text, true, None);
+    fn open_config(&mut self) -> MenuItem {
+        let menu_item = MenuItem::with_id(MenuAction::OpenConfig.id(), LOC.open_config, true, None);
         self.0.register(menu_item.kind(), None);
         menu_item
     }
 
-    fn startup(&mut self, text: &str) -> Result<CheckMenuItem> {
+    fn startup(&mut self) -> Result<CheckMenuItem> {
         let should_startup = get_startup_status()?;
-        let check_menu_item =
-            CheckMenuItem::with_id(MenuAction::Startup.id(), text, true, should_startup, None);
+        let check_menu_item = CheckMenuItem::with_id(
+            MenuAction::Startup.id(),
+            LOC.startup,
+            true,
+            should_startup,
+            None,
+        );
         self.0.register(check_menu_item.kind(), None);
         Ok(check_menu_item)
     }
 
-    fn indicator_theme(&mut self, config: &Config) -> Result<Submenu> {
+    fn indicator_theme(&mut self) -> Result<Submenu> {
+        let config = CONFIG.read().unwrap();
+
         let menu_radio_items = [
             (
                 MenuAction::FollowIndicatorAreaTheme,
@@ -115,7 +123,7 @@ impl CreateMenuItem {
             .context("Failed to apped 'Indicator Theme' to Tray Menu")
     }
 
-    fn window_postion(&mut self, config: &Config) -> Result<Submenu> {
+    fn window_postion(&mut self) -> Result<Submenu> {
         let menu_radio_items = WindowPosition::iter()
             .map(|position| {
                 let menu_id = MenuId::new(position.as_ref());
@@ -126,7 +134,7 @@ impl CreateMenuItem {
                     menu_id,
                     text,
                     true,
-                    config.get_window_position() == position,
+                    CONFIG.read().unwrap().get_window_position() == position,
                     None,
                 );
 
@@ -149,7 +157,8 @@ impl CreateMenuItem {
             .context("Failed to apped 'Window Postion' to Tray Menu")
     }
 
-    fn select_monitor(&mut self, config: &Config) -> Result<Submenu> {
+    fn select_monitor(&mut self) -> Result<Submenu> {
+        let config = CONFIG.read().unwrap();
         let menu_radio_items = [
             (
                 MenuAction::SelectPrimaryMonitor,
@@ -186,26 +195,26 @@ impl CreateMenuItem {
     }
 }
 
-pub fn create_menu(config: &Config, menu_manager: &mut MenuRegistry<MenuGroup>) -> Result<Menu> {
+pub fn create_menu(menu_manager: &mut MenuRegistry<MenuGroup>) -> Result<Menu> {
     let menu_separator = CreateMenuItem::separator();
 
     let mut create_menu_item = CreateMenuItem::new();
 
-    let menu_about = create_menu_item.about(LOC.about);
+    let menu_about = create_menu_item.about();
 
-    let menu_quit = create_menu_item.quit(LOC.quit);
+    let menu_quit = create_menu_item.quit();
 
-    let menu_restart = create_menu_item.restart(LOC.restart);
+    let menu_restart = create_menu_item.restart();
 
-    let menu_startup = create_menu_item.startup(LOC.startup)?;
+    let menu_startup = create_menu_item.startup()?;
 
-    let menu_open_config = create_menu_item.open_config(LOC.open_config);
+    let menu_open_config = create_menu_item.open_config();
 
-    let menu_indicator_theme = create_menu_item.indicator_theme(config)?;
+    let menu_indicator_theme = create_menu_item.indicator_theme()?;
 
-    let menu_window_position = create_menu_item.window_postion(config)?;
+    let menu_window_position = create_menu_item.window_postion()?;
 
-    let menu_select_monitor = create_menu_item.select_monitor(config)?;
+    let menu_select_monitor = create_menu_item.select_monitor()?;
 
     *menu_manager = create_menu_item.0;
 

@@ -27,10 +27,14 @@ use std::{
 };
 
 use crate::{
-    config::{CONFIG, Config, EXE_PATH, WINDOW_LOGICAL_SIZE},
-    icon::{CustomIcon, load_icon_for_window, render_font_to_sufface, render_icon_to_buffer},
+    config::{CONFIG, EXE_PATH},
+    icon::{
+        CustomIcon, FONT_DEFAULT_PATH, IndicatorIcon, check_font_exists, load_icon_for_window,
+        render_font_to_surface, render_icon_to_buffer,
+    },
     monitor::get_scale_factor,
     single_instance::SingleInstance,
+    theme::{IndicatorTheme, get_indicator_area_theme, get_system_theme},
     tray::{
         create_tray,
         menu::{MenuGroup, about, handler::handle_menu_event},
@@ -58,7 +62,7 @@ fn main() -> Result<()> {
     let _single_instance = SingleInstance::new()?;
 
     let _uiaccess_token =
-        prepare_uiaccess_token().inspect(|_| println!("Successful acquisition of Uiaccess"));
+        prepare_uiaccess_token().inspect(|_| log::info!("successful acquisition of Uiaccess"));
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -68,7 +72,7 @@ fn main() -> Result<()> {
     MenuEvent::set_event_handler(Some(move |event| {
         proxy
             .send_event(UserEvent::MenuEvent(event))
-            .expect("Failed to send MenuEvent");
+            .expect("failed to send MenuEvent");
     }));
 
     let proxy = event_loop.create_proxy();
@@ -79,49 +83,30 @@ fn main() -> Result<()> {
 }
 
 struct App {
-    close_window_time: Arc<AtomicU64>,
     exit_threads: Arc<AtomicBool>,
     event_loop_proxy: EventLoopProxy<UserEvent>,
-    custom_icon: Option<CustomIcon>,
-    menu_registry: MenuRegistry<MenuGroup>,
     show_indicator: Arc<AtomicBool>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    tray: Mutex<TrayIcon>,
     window: Option<Rc<Window>>,
-    window_phy_height: u32,
-    window_phy_width: u32,
+    close_window_time: Arc<AtomicU64>,
+    tray: Mutex<TrayIcon>,
+    menu_registry: MenuRegistry<MenuGroup>,
 }
 
 impl App {
     fn new(event_loop_proxy: EventLoopProxy<UserEvent>) -> Self {
-        let config = Config::open().expect("Failed to open config");
-
         let mut menu_registry: MenuRegistry<MenuGroup> = MenuRegistry::new();
-        let tray = create_tray(&config, &mut menu_registry).expect("Failed to create tray");
-
-        let custom_icon = CustomIcon::find_custom_icon();
-
-        let (window_phy_width, window_phy_height) = custom_icon.as_ref().map_or_else(
-            || {
-                let scale = get_scale_factor();
-                let size = (WINDOW_LOGICAL_SIZE * scale).round() as u32;
-                (size, size)
-            },
-            |i| i.get_size(),
-        );
+        let tray = create_tray(&mut menu_registry).expect("failed to create tray");
 
         Self {
             close_window_time: Arc::new(AtomicU64::new(0)),
             exit_threads: Arc::new(AtomicBool::new(false)),
             event_loop_proxy,
-            custom_icon,
             menu_registry,
             show_indicator: Arc::new(AtomicBool::new(false)),
             surface: None,
             tray: Mutex::new(tray),
             window: None,
-            window_phy_height,
-            window_phy_width,
         }
     }
 
@@ -130,13 +115,13 @@ impl App {
             return Ok(());
         }
 
-        let window_phy_position = CONFIG
-            .read()
-            .unwrap()
-            .window_setting
-            .get_phy_position(self.window_phy_width, self.window_phy_height)?;
+        let window_phy_position = CONFIG.read().unwrap().window_setting.get_phy_position()?;
 
-        let window_size = PhysicalSize::new(self.window_phy_width, self.window_phy_height);
+        let window_size = {
+            let (window_phy_width, window_phy_height) =
+                CONFIG.read().unwrap().get_window_phy_size();
+            PhysicalSize::new(window_phy_width, window_phy_height)
+        };
 
         let window_attributes = Window::default_attributes()
             .with_visible(false)
@@ -173,30 +158,33 @@ impl App {
                     std::mem::size_of::<i32>() as u32,
                 )
             } {
-                log::error!("Failed to set DWMWA_TRANSITIONS_FORCEDISABLED attribute: {e:?}");
+                log::error!("failed to set DWMWA_TRANSITIONS_FORCEDISABLED attribute: {e:?}");
             }
         }
 
         let (window, _context, mut surface) = {
             let window = Rc::new(window);
             let context = softbuffer::Context::new(window.clone())
-                .map_err(|e| anyhow!("Failed to create a new instance of context - {e}"))?;
+                .map_err(|e| anyhow!("failed to create a new instance of context - {e}"))?;
             let surface = Surface::new(&context, window.clone())
-                .map_err(|e| anyhow!("Failed to create a surface - {e}"))?;
+                .map_err(|e| anyhow!("failed to create a surface - {e}"))?;
             (window, context, surface)
         };
 
         let (width, height): (u32, u32) = window.inner_size().into();
+
+        CONFIG.write().unwrap().set_window_phy_size(width, height);
+
         surface
             .resize(
                 NonZeroU32::new(width).with_context(|| "Width must be non-zero")?,
                 NonZeroU32::new(height).with_context(|| "Hight must be non-zero")?,
             )
-            .map_err(|e| anyhow!("Failed to set the size of the buffer - {e}"))?;
+            .map_err(|e| anyhow!("failed to set the size of the buffer - {e}"))?;
 
         window.set_visible(true);
         window.set_enable(false);
-        let _ = window.set_cursor_hittest(false); // 鼠标穿透
+        window.set_cursor_hittest(false)?; // 鼠标穿透
 
         self.window = Some(window);
         self.surface = Some(surface);
@@ -280,9 +268,9 @@ impl ApplicationHandler<UserEvent> for App {
                                 log::info!("Surface recreated successfully after resume");
                             }
                         }
-                        Err(e) => log::error!("Failed to recreate surface on resume: {e}"),
+                        Err(e) => log::error!("failed to recreate surface on resume: {e}"),
                     },
-                    Err(e) => log::error!("Failed to recreate context on resume: {e}"),
+                    Err(e) => log::error!("failed to recreate context on resume: {e}"),
                 }
             }
 
@@ -291,7 +279,7 @@ impl ApplicationHandler<UserEvent> for App {
         } else {
             // 首次启动
             self.create_window(event_loop)
-                .expect("Failed to create window");
+                .expect("failed to create window");
             self.listen_capslock();
             self.auto_hide_window();
         }
@@ -329,18 +317,17 @@ impl ApplicationHandler<UserEvent> for App {
                     .map_err(|e| anyhow!("{e}"))
                     .and_then(|menu_meta| handle_menu_event(menu_meta, &self.event_loop_proxy))
                 {
-                    error!("Failed to handle menu event: {e}");
+                    error!("failed to handle menu event: {e}");
                 }
             }
             UserEvent::MoveWindow => {
                 if let Some(window) = self.window.as_ref() {
-                    let (window_width, window_height): (u32, u32) = window.inner_size().into();
-
                     let window_phy_position = CONFIG
                         .read()
                         .unwrap()
-                        .get_window_phy_position(window_width, window_height)
-                        .expect("Failed to get window physical position");
+                        .window_setting
+                        .get_phy_position()
+                        .expect("failed to get window physical position");
 
                     window.set_outer_position(window_phy_position);
                 }
@@ -360,43 +347,66 @@ impl ApplicationHandler<UserEvent> for App {
                         window.set_skip_taskbar(true);
                         window.set_minimized(false);
 
-                        if let Some(custom_icon) = &self.custom_icon {
-                            let theme = CONFIG.read().unwrap().indicator_theme.get_theme(
+                        let config = CONFIG.read().unwrap();
+
+                        let icon_theme = match config.indicator_theme {
+                            IndicatorTheme::System => get_system_theme(),
+                            IndicatorTheme::IndicatorArea => get_indicator_area_theme(
                                 get_scale_factor(),
                                 min(window_width, window_height) as f64,
-                            );
+                            ),
+                        };
 
-                            let (icon_buffer, icon_size) =
-                                custom_icon.get_icon_date_and_size(theme);
+                        match config.indicator_icon {
+                            IndicatorIcon::Font {
+                                ref glyph,
+                                ref font_path,
+                            } => {
+                                let font_color = icon_theme.get_font_color();
 
-                            render_icon_to_buffer(
-                                &mut buffer,
-                                &icon_buffer,
-                                icon_size,
-                                window_width,
-                                window_height,
-                            )
-                            .expect("Failed to render icon to surface");
-                        } else {
-                            let color = CONFIG
-                                .read()
-                                .unwrap()
-                                .indicator_theme
-                                .get_theme(
-                                    get_scale_factor(),
-                                    min(window_width, window_height) as f64,
-                                )
-                                .get_font_color();
+                                let font_path = check_font_exists(font_path)
+                                    .unwrap_or_else(|| FONT_DEFAULT_PATH.to_owned());
 
-                            render_font_to_sufface(&mut buffer, color, window_width, window_height)
-                                .expect("Failed to render font to surface");
+                                if let Err(e) = render_font_to_surface(
+                                    &mut buffer,
+                                    *glyph,
+                                    font_color,
+                                    font_path,
+                                    window_width,
+                                    window_height,
+                                ) {
+                                    log::error!("failed to render font to surface: {e}")
+                                };
+                            }
+                            IndicatorIcon::Custom(ref custom_icon) => {
+                                let icon_path = match custom_icon {
+                                    CustomIcon::Normal(image_path) => image_path,
+                                    CustomIcon::Theme { light, dark } => match icon_theme {
+                                        theme::Theme::Light => light,
+                                        theme::Theme::Dark => dark,
+                                    },
+                                };
+
+                                if let Ok(image) = image::open(icon_path) {
+                                    if let Err(e) = render_icon_to_buffer(
+                                        &mut buffer,
+                                        image,
+                                        window_width,
+                                        window_height,
+                                    ) {
+                                        log::error!("failed to render icon to surface: {e}")
+                                    };
+                                } else {
+                                    log::error!("failed to open icon file");
+                                }
+                            }
                         }
                     }
 
-                    buffer.present().expect("Failed to present the buffer");
+                    buffer.present().expect("failed to present the buffer");
                 } else {
                     self.create_window(event_loop)
-                        .expect("Failed to create window");
+                        .expect("failed to create window");
                 }
             }
             UserEvent::Restart => {
@@ -406,7 +416,7 @@ impl ApplicationHandler<UserEvent> for App {
                     .args(args_os.iter().skip(1))
                     .spawn()
                 {
-                    error!("Failed to restart app: {e}");
+                    error!("failed to restart app: {e}");
                 }
 
                 let _ = self.event_loop_proxy.send_event(UserEvent::Exit);

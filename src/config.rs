@@ -3,33 +3,33 @@ use std::sync::{LazyLock, RwLock};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use winit::dpi::PhysicalPosition;
 
+use crate::icon::IndicatorIcon;
 use crate::monitor::MonitorSelector;
 use crate::theme::IndicatorTheme;
 use crate::window::{WindowPosition, WindowSetting};
 
-pub const WINDOW_LOGICAL_SIZE: f64 = 200.0;
-
 pub static CONFIG: LazyLock<RwLock<Config>> =
-    LazyLock::new(|| RwLock::new(Config::open().expect("Failed to open config")));
+    LazyLock::new(|| RwLock::new(Config::open().expect("failed to open config")));
 
 pub static EXE_PATH: LazyLock<PathBuf> =
-    LazyLock::new(|| std::env::current_exe().expect("Failed to get CapsGlow.exe path"));
+    LazyLock::new(|| std::env::current_exe().expect("failed to get CapsGlow.exe path"));
 
 pub static EXE_PATH_STRING: LazyLock<String> = LazyLock::new(|| {
     EXE_PATH
         .to_str()
         .map(|s| s.to_string())
-        .expect("Failed to EXE 'Path' to 'String'")
+        .expect("failed to EXE 'Path' to 'String'")
 });
+
+pub static EXE_DIR: LazyLock<PathBuf> = LazyLock::new(|| EXE_PATH.parent().unwrap().to_path_buf());
 
 pub static EXE_NAME: LazyLock<String> = LazyLock::new(|| {
     Path::new(&*EXE_PATH)
         .file_stem()
         .and_then(|stem| stem.to_str())
         .map(|stem| stem.to_owned())
-        .expect("Failed to get EXE name")
+        .expect("failed to get EXE name")
 });
 
 pub static CONFIG_PATH: LazyLock<PathBuf> =
@@ -39,6 +39,7 @@ pub static CONFIG_PATH: LazyLock<PathBuf> =
 pub struct Config {
     pub window_setting: WindowSetting,
     pub indicator_theme: IndicatorTheme,
+    pub indicator_icon: IndicatorIcon,
 }
 
 impl Config {
@@ -46,7 +47,7 @@ impl Config {
         let default_config = Config::default();
 
         Config::read().or_else(|e| {
-            log::warn!("Failed to read the config file: {e}\nNow creat a new config file");
+            log::warn!("failed to read the config file: {e}\nNow creat a new config file");
             let toml_str = toml::to_string_pretty(&default_config)?;
             std::fs::write(&*CONFIG_PATH, toml_str)?;
             Ok(default_config)
@@ -61,9 +62,9 @@ impl Config {
 
     pub fn save(&self) {
         let toml_str = toml::to_string_pretty(self)
-            .expect("Failed to serialize ConfigToml structure as a String of TOML.");
+            .expect("failed to serialize ConfigToml structure as a String of TOML.");
         std::fs::write(&*CONFIG_PATH, toml_str)
-            .expect("Failed to write TOML String to CapsGlow.toml");
+            .expect("failed to write TOML String to CapsGlow.toml");
     }
 }
 
@@ -94,13 +95,11 @@ impl Config {
         self.window_setting.position.clone()
     }
 
-    pub fn get_window_phy_position(
-        &self,
-        window_phy_width: u32,
-        window_phy_height: u32,
-    ) -> Result<PhysicalPosition<i32>> {
-        self.window_setting
-            .get_phy_position(window_phy_width, window_phy_height)
+    pub fn get_window_phy_size(&self) -> (u32, u32) {
+        (
+            self.window_setting.phy_width,
+            self.window_setting.phy_height,
+        )
     }
 }
 
@@ -123,5 +122,10 @@ impl Config {
 
     pub fn set_window_position(&mut self, position: WindowPosition) {
         self.window_setting.position = position;
+    }
+
+    pub fn set_window_phy_size(&mut self, phy_width: u32, phy_height: u32) {
+        self.window_setting.phy_width = phy_width;
+        self.window_setting.phy_height = phy_height;
     }
 }
